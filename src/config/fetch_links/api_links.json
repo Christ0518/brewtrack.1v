@@ -1,0 +1,8 @@
+{
+    "auth_login" : "/services/supabase/tbl_users",
+    "jwt" : {
+        "verify" : "/services/jwt/verify",
+        "deauth" : "/services/jwt/deauth",
+        "auth" : "/services/jwt/auth"
+    }
+}

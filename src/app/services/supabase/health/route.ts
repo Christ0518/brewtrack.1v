@@ -8,7 +8,7 @@ export async function GET() {
 
     try {
 
-        const { error } = await supabaseServer
+        const { data, error } = await supabaseServer
         .from("tbl_users")     
         .select("*")
         .limit(1);
@@ -16,7 +16,7 @@ export async function GET() {
         if (error) throw error;
 
         return NextResponse.json(
-        { status: "healthy", message: " ==> Supabase connection successful" },
+        { status: "healthy", message: " ==> Supabase connection successful", data: data },
         { status: 200 }
         );
     } catch (err) {
