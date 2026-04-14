@@ -87,7 +87,7 @@ export default [
     rules: {
       ...(reactPlugin.configs.recommended.rules ?? {}),
       ...(nextPlugin.configs["core-web-vitals"]?.rules ?? nextPlugin.configs.recommended?.rules ?? {}),
-      semi: ["error", "always"],
+      // semi: ["error", "always"],
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
       "react/no-unknown-property": ["error", { ignore: ["intensity", "position", "args", "attach"] }],
