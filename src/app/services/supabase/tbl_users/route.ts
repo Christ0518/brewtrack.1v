@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, message: "Supabase got an error" }, { status: 405 });
     }
 
-    if (data && data.length < 0) return NextResponse.json({ success: false, message: "User not exist" }, { status: 404 });
+    if (data && data.length <= 0) return NextResponse.json({ success: false, message: "User not exist" }, { status: 404 });
 
     const verify = verifypassword(password, data[0].password);
 

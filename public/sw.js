@@ -2,7 +2,6 @@
 const CACHE_NAME = 'brewtrack-v1';
 const urlsToCache = [
     '/',
-    '/offline.html',
 ];
 
 self.addEventListener('install', (event) => {

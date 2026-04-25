@@ -1,8 +1,14 @@
 {
-    "auth_login" : "/services/supabase/tbl_users",
-    "jwt" : {
-        "verify" : "/services/jwt/verify",
-        "deauth" : "/services/jwt/deauth",
-        "auth" : "/services/jwt/auth"
+    "auth_login": "/services/supabase/tbl_users",
+    "tbl_products": "/services/supabase/tbl_products",
+    "tbl_category": "/services/supabase/tbl_category",
+    "tbl_ingredients": "/services/supabase/tbl_ingredients",
+    "tbl_toppings": "/services/supabase/tbl_toppings",
+    "tbl_orders": "/services/supabase/tbl_orders",
+    "tbl_product_variants": "/services/supabase/tbl_product_variants",
+    "jwt": {
+        "verify": "/services/jwt/verify",
+        "deauth": "/services/jwt/deauth",
+        "auth": "/services/jwt/auth"
     }
 }
