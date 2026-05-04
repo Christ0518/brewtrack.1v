@@ -1,5 +1,5 @@
 "use client";
-import {Form} from "@/components/goodcoffee"
+import {Form} from "@/components/goodcoffee";
 
 export default function Authentications() {
     

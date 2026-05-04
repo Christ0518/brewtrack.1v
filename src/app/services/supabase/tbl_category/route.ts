@@ -96,8 +96,18 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const id = url.searchParams.get("id");
-    const shopId = url.searchParams.get("shop_id");
+    let id = url.searchParams.get("id");
+    let shopId = url.searchParams.get("shop_id");
+
+    if (!id || !shopId) {
+      try {
+        const body = await req.json();
+        id = id || body?.id?.toString() || null;
+        shopId = shopId || body?.shop_id?.toString() || null;
+      } catch {
+        // ignore non-JSON body
+      }
+    }
 
     if (!shopId || isNaN(Number(shopId))) {
       return NextResponse.json(

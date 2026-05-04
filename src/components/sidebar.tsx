@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
+import { getShopTheme } from "@/lib/theme";
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(true);
@@ -21,10 +22,13 @@ export default function Sidebar() {
 
   useEffect(() => {
     const storedShop = localStorage.getItem("shopName");
+    const storedShopId = localStorage.getItem("shopId");
     const storedColor = localStorage.getItem("shopColor");
     const storedUser = localStorage.getItem("user");
+    const theme = getShopTheme(storedShopId || "1");
+
     if (storedShop) setShopName(storedShop);
-    if (storedColor) setShopColor(storedColor);
+    setShopColor(storedColor || theme.accentColor);
     if (storedUser && storedUser !== "undefined") {
       try {
         setUser(JSON.parse(storedUser));
@@ -40,8 +44,6 @@ export default function Sidebar() {
     { name: "Ingredients", path: "/dashboard/ingredients", icon: "🗂️" },
     { name: "Reports", path: "/dashboard/reports", icon: "📄" },
     { name: "Transactions", path: "/dashboard/transactions", icon: "💰" },
-    { name: "Kitchen Display", path: "/kitchen", icon: "🍳" },
-    { name: "Cashier", path: "/cashier", icon: "💳" },
     { name: "Settings", path: "/dashboard/settings", icon: "⚙️" },
   ];
 

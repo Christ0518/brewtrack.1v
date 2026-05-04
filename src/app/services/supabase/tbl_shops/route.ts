@@ -5,7 +5,15 @@ import bcrypt from "bcrypt";
 const verifypassword = async(plainpassword: string, hashpassword: string) => {
     const match = await bcrypt.compare(plainpassword, hashpassword);
     return match;
-}
+};
+
+const normalizeUserRole = (user: Record<string, unknown>) => {
+    const role = user.role ?? user.user_role ?? user.userRole;
+    return {
+        ...user,
+        role: typeof role === "string" ? role : undefined,
+    };
+};
 
 // POST - User authentication (existing)
 export async function POST(req: NextRequest) {
@@ -14,10 +22,16 @@ export async function POST(req: NextRequest) {
 
     if (!name || !password || !shopId) return NextResponse.json({ success: false, message: "No Existing Field" }, { status: 404 });
 
+    const shopIdNumber = Number(shopId);
+    if (Number.isNaN(shopIdNumber)) {
+        return NextResponse.json({ success: false, message: "Invalid shopId" }, { status: 400 });
+    }
+
     const { data, error } = await supabaseServer
     .from("tbl_users")
     .select("*")
     .eq("name", name)
+    .eq("shop_id", shopIdNumber)
     .limit(1);
 
     if (error) {
@@ -31,7 +45,13 @@ export async function POST(req: NextRequest) {
 
     if (!verify) return NextResponse.json({ success: false, message: "Wrong Password" }, { status: 403 });
 
-    return NextResponse.json({ success: true, message: data }, { status: 200 });
+    return NextResponse.json(
+        {
+            success: true,
+            data: (data || []).map((user) => normalizeUserRole(user as Record<string, unknown>)),
+        },
+        { status: 200 }
+    );
 
 }
 
@@ -49,7 +69,7 @@ export async function GET(req: NextRequest) {
 
             const { data: shops, error } = await supabaseServer
                 .from("tbl_shops")
-                .select("id, name, has_tax, is_active, logo_url, receipt_header, receipt_footer, COALESCE(brand_color, '#073dbe') as brand_color")
+                .select("id, name, is_active, logo_url, receipt_header, receipt_footer, brand_color")
                 .eq("id", id)
                 .eq("is_active", true)
                 .limit(1);
@@ -63,13 +83,19 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ message: "Shop not found" }, { status: 404 });
             }
 
-            return NextResponse.json(shops[0], { status: 200 });
+            return NextResponse.json(
+                {
+                    ...shops[0],
+                    brand_color: shops[0].brand_color || "#073dbe",
+                },
+                { status: 200 }
+            );
         }
 
         // Get all shops
         const { data: shops, error } = await supabaseServer
             .from("tbl_shops")
-            .select("id, name, has_tax, is_active, logo_url, receipt_header, receipt_footer, COALESCE(brand_color, '#073dbe') as brand_color")
+            .select("id, name,  is_active, logo_url, receipt_header, receipt_footer, brand_color")
             .eq("is_active", true);
 
         if (error) {
@@ -77,7 +103,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ message: "Cannot fetch shops", error: error.message }, { status: 500 });
         }
 
-        return NextResponse.json(shops, { status: 200 });
+        return NextResponse.json(
+            (shops || []).map((shop) => ({
+                ...shop,
+                brand_color: shop.brand_color || "#073dbe",
+            })),
+            { status: 200 }
+        );
     } catch (error) {
         console.error("Error in GET handler:", error);
         return NextResponse.json({ message: "Internal server error" }, { status: 500 });

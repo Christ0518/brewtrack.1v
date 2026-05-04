@@ -16,12 +16,50 @@ interface Order {
   status: "pending" | "preparing" | "completed";
   created_at: string;
   special_notes?: string;
+  customer_name?: string;
 }
 
 export default function KitchenDisplay() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(new Date());
+
+  const buildOrderNumber = (id: number) => `ORD-${String(id).padStart(3, "0")}`;
+
+  const loadOrders = async () => {
+    const storedShopId = localStorage.getItem("shopId") || "1";
+
+    const response = await fetch(api_links.tbl_orders, {
+      headers: {
+        "x-shop-id": storedShopId,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to load orders: ${response.status} - ${errorText.substring(0, 120)}`);
+    }
+
+    const data = await response.json();
+    const normalizedOrders: Order[] = (Array.isArray(data) ? data : []).map((order: any) => ({
+      id: Number(order.id),
+      order_number: order.order_number || buildOrderNumber(Number(order.id)),
+      items: Array.isArray(order.items)
+        ? order.items.map((item: any) => ({
+            product_name: item.product_name || "Unknown item",
+            quantity: Number(item.quantity) || 0,
+            variant: item.variant_name || item.variant || "Default",
+          }))
+        : [],
+      status: order.status,
+      created_at: order.created_at,
+      special_notes: order.notes || order.special_notes || undefined,
+      customer_name: order.customer_name || undefined,
+    }));
+
+    setOrders(normalizedOrders);
+  };
 
   const handleLogout = async () => {
     try {
@@ -64,50 +102,49 @@ export default function KitchenDisplay() {
       return;
     }
 
-    // Load sample orders
-    const sampleOrders: Order[] = [
-      {
-        id: 1,
-        order_number: "ORD-001",
-        items: [
-          { product_name: "Caramel Macchiato", quantity: 2, variant: "Large" },
-          { product_name: "Iced Latte", quantity: 1, variant: "Medium" },
-        ],
-        status: "pending",
-        created_at: new Date(Date.now() - 5 * 60000).toISOString(),
-        special_notes: "Extra caramel on one",
-      },
-      {
-        id: 2,
-        order_number: "ORD-002",
-        items: [
-          { product_name: "Espresso", quantity: 3, variant: "Single Shot" },
-        ],
-        status: "preparing",
-        created_at: new Date(Date.now() - 2 * 60000).toISOString(),
-      },
-      {
-        id: 3,
-        order_number: "ORD-003",
-        items: [
-          { product_name: "Cappuccino", quantity: 1, variant: "Large" },
-          { product_name: "Croissant", quantity: 2, variant: "Butter" },
-        ],
-        status: "pending",
-        created_at: new Date(Date.now() - 8 * 60000).toISOString(),
-      },
-    ];
+    const initializeOrders = async () => {
+      try {
+        await loadOrders();
+      } catch (error) {
+        console.error("Failed to load kitchen orders:", error);
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    setOrders(sampleOrders);
-    setLoading(false);
+    initializeOrders();
   }, [router]);
 
-  const handleStatusChange = (orderId: number, newStatus: "pending" | "preparing" | "completed") => {
-    setOrders(
-      orders.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus } : order
-      )
-    );
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleStatusChange = async (orderId: number, newStatus: "pending" | "preparing" | "completed") => {
+    try {
+      const response = await fetch(api_links.tbl_orders, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-shop-id": localStorage.getItem("shopId") || "1",
+        },
+        body: JSON.stringify({ id: orderId, status: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to update order status");
+      }
+
+      setOrders((currentOrders) =>
+        currentOrders.map((order) =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+    } catch (error) {
+      console.error("Failed to update order status:", error);
+    }
   };
 
   const getTimeElapsed = (createdAt: string) => {
@@ -117,6 +154,10 @@ export default function KitchenDisplay() {
     if (minutes < 1) return "Just now";
     if (minutes === 1) return "1 min";
     return `${minutes} mins`;
+  };
+
+  const getCurrentDateTime = () => {
+    return `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -220,6 +261,14 @@ export default function KitchenDisplay() {
                     </div>
 
                     <div className="space-y-2 mb-4 bg-white rounded p-2">
+                      <div className="pb-2 border-b border-slate-200">
+                        <p className="text-xs text-slate-600">
+                          <span className="font-semibold text-slate-700">Name:</span> {order.customer_name || "Walk-in"}
+                        </p>
+                        <p className="text-xs text-slate-600 mt-1">
+                          <span className="font-semibold text-slate-700">Current:</span> {getCurrentDateTime()}
+                        </p>
+                      </div>
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-start">
                           <div>
@@ -294,6 +343,14 @@ export default function KitchenDisplay() {
                     </div>
 
                     <div className="space-y-2 mb-4 bg-white rounded p-2">
+                      <div className="pb-2 border-b border-slate-200">
+                        <p className="text-xs text-slate-600">
+                          <span className="font-semibold text-slate-700">Name:</span> {order.customer_name || "Walk-in"}
+                        </p>
+                        <p className="text-xs text-slate-600 mt-1">
+                          <span className="font-semibold text-slate-700">Current:</span> {getCurrentDateTime()}
+                        </p>
+                      </div>
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-start">
                           <div>
@@ -357,6 +414,12 @@ export default function KitchenDisplay() {
                     </div>
 
                     <div className="space-y-2 bg-white rounded p-2">
+                      <div className="pb-2 border-b border-slate-200">
+                        <p className="text-xs text-slate-600">
+                          <span className="font-semibold text-slate-700">Name:</span> {order.customer_name || "Walk-in"}
+                        </p>
+                        
+                      </div>
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-start">
                           <div>

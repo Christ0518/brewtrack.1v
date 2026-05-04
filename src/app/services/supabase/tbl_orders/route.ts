@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase";
-import { deductOrderInventory } from "@/lib/stock";
+
 
 // CREATE ORDER with inventory deduction
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("📦 Incoming order payload:", JSON.stringify(body, null, 2));
+    
     const {
       cashier_id,
       order_type,
@@ -21,13 +23,25 @@ export async function POST(req: NextRequest) {
     } = body;
     const shopId = req.headers.get("x-shop-id") || "1";
 
+    console.log("📋 Parsed values:", {
+      cashier_id,
+      order_type,
+      status,
+      total,
+      items: items?.length,
+      shopId
+    });
+
     // Validation
-    if (!cashier_id || total === undefined || !Array.isArray(items) || items.length === 0) {
+    if (total === undefined || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
-        { message: "Missing required fields: cashier_id, total, items" },
+        { message: "Missing required fields: total, items" },
         { status: 400 }
       );
     }
+
+    // For online orders (no cashier), use null
+    const finalCashierId = cashier_id || null;
 
     // Prepare cart items for deduction (convert variant_id to number)
     const cartItems = items.map((item: any) => ({
@@ -36,20 +50,15 @@ export async function POST(req: NextRequest) {
     }));
 
     // Deduct inventory based on recipe logic
-    const deductionResult = await deductOrderInventory(cartItems, shopId);
+    
 
-    if (!deductionResult.success) {
-      return NextResponse.json(
-        { success: false, message: deductionResult.message },
-        { status: 400 }
-      );
-    }
+    
 
     // Create order header
     const { data: orderData, error: orderError } = await supabaseServer
       .from("tbl_orders")
       .insert({
-        cashier_id: Number(cashier_id),
+        cashier_id: finalCashierId,
         order_type: order_type || "dine-in",
         status: status || "completed",
         total: Number(total),
@@ -65,8 +74,20 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (orderError) {
+      console.error("Supabase order creation error:", {
+        error: orderError,
+        message: orderError.message,
+        code: orderError.code,
+        details: orderError.details
+      });
       return NextResponse.json(
-        { success: false, message: "Failed to create order", error: orderError.message },
+        { 
+          success: false, 
+          message: "Failed to create order", 
+          error: orderError.message,
+          code: orderError.code,
+          details: orderError.details
+        },
         { status: 500 }
       );
     }
@@ -96,7 +117,7 @@ export async function POST(req: NextRequest) {
         success: true,
         message: "Order created and inventory deducted",
         order_id: orderId,
-        inventory_deductions: deductionResult.deducted
+        
       },
       { status: 201 }
     );
@@ -416,6 +437,106 @@ export async function PATCH(req: NextRequest) {
         { message: "Order ID and status required" },
         { status: 400 }
       );
+    }
+
+    const nextStatus = String(status);
+
+    const { data: existingOrder, error: orderError } = await supabaseServer
+      .from("tbl_orders")
+      .select("id, status")
+      .eq("id", id)
+      .single();
+
+    if (orderError || !existingOrder) {
+      return NextResponse.json(
+        { message: "Order not found" },
+        { status: 404 }
+      );
+    }
+
+    // Deduct ingredients only once: when transitioning into completed.
+    if (existingOrder.status !== "completed" && nextStatus === "completed") {
+      const { data: orderDetails, error: detailsError } = await supabaseServer
+        .from("tbl_orders_details")
+        .select("variant_id, quantity")
+        .eq("order_id", id);
+
+      if (detailsError) throw detailsError;
+
+      const detailRows = orderDetails || [];
+      const variantIds = Array.from(new Set(detailRows.map((row: any) => Number(row.variant_id)).filter((value) => !Number.isNaN(value))));
+
+      if (variantIds.length > 0) {
+        const { data: recipeRows, error: recipeError } = await supabaseServer
+          .from("tbl_product_ingredients")
+          .select("variant_id, ingredient_id, amount")
+          .in("variant_id", variantIds);
+
+        if (recipeError) throw recipeError;
+
+        const recipeByVariant = new Map<number, Array<{ ingredient_id: number; amount: number }>>();
+        for (const row of recipeRows || []) {
+          const variantId = Number((row as any).variant_id);
+          const ingredientId = Number((row as any).ingredient_id);
+          const amount = Number((row as any).amount) || 0;
+
+          if (Number.isNaN(variantId) || Number.isNaN(ingredientId) || amount <= 0) continue;
+          if (!recipeByVariant.has(variantId)) recipeByVariant.set(variantId, []);
+          recipeByVariant.get(variantId)!.push({ ingredient_id: ingredientId, amount });
+        }
+
+        const requiredByIngredient = new Map<number, number>();
+
+        for (const detail of detailRows) {
+          const variantId = Number((detail as any).variant_id);
+          const qty = Number((detail as any).quantity) || 0;
+          const ingredients = recipeByVariant.get(variantId) || [];
+
+          for (const ingredient of ingredients) {
+            const currentRequired = requiredByIngredient.get(ingredient.ingredient_id) || 0;
+            requiredByIngredient.set(ingredient.ingredient_id, currentRequired + ingredient.amount * qty);
+          }
+        }
+
+        const ingredientIds = Array.from(requiredByIngredient.keys());
+        if (ingredientIds.length > 0) {
+          const { data: inventoryRows, error: inventoryError } = await supabaseServer
+            .from("tbl_inventory")
+            .select("ingredient_id, quantity")
+            .in("ingredient_id", ingredientIds);
+
+          if (inventoryError) throw inventoryError;
+
+          const inventoryMap = new Map<number, number>(
+            (inventoryRows || []).map((row: any) => [Number(row.ingredient_id), Number(row.quantity) || 0])
+          );
+
+          for (const ingredientId of ingredientIds) {
+            const available = inventoryMap.get(ingredientId) || 0;
+            const required = requiredByIngredient.get(ingredientId) || 0;
+
+            if (available < required) {
+              return NextResponse.json(
+                { message: `Not enough inventory for ingredient ${ingredientId}. Need ${required}, only ${available} available.` },
+                { status: 400 }
+              );
+            }
+          }
+
+          for (const ingredientId of ingredientIds) {
+            const available = inventoryMap.get(ingredientId) || 0;
+            const required = requiredByIngredient.get(ingredientId) || 0;
+            const newQuantity = available - required;
+
+            const { error: updateInventoryError } = await supabaseServer
+              .from("tbl_inventory")
+              .update({ quantity: newQuantity })
+              .eq("ingredient_id", ingredientId);
+
+            if (updateInventoryError) throw updateInventoryError;
+          }
+        }
+      }
     }
 
     const { error } = await supabaseServer.from("tbl_orders").update({ status }).eq("id", id);

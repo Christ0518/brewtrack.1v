@@ -7,6 +7,7 @@ export interface Variant {
   id?: string;
   name: string;
   price: number;
+  quantity?: number;
   calculated_stock?: number;
   calculated_cost: number;
   ingredients: Ingredient[];

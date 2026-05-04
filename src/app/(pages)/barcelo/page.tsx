@@ -1,5 +1,5 @@
 "use client";
-import {Form} from "@/components/barcelo"
+import {Form} from "@/components/barcelo";
 
 export default function Authentications() {
     

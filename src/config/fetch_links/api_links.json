@@ -3,9 +3,13 @@
     "tbl_products": "/services/supabase/tbl_products",
     "tbl_category": "/services/supabase/tbl_category",
     "tbl_ingredients": "/services/supabase/tbl_ingredients",
+    "tbl_shops": "/services/supabase/tbl_shops",
     "tbl_toppings": "/services/supabase/tbl_toppings",
     "tbl_orders": "/services/supabase/tbl_orders",
+    "tbl_cashflow": "/services/supabase/tbl_cashflow",
+    "tbl_users_manage": "/services/supabase/tbl_users/manage",
     "tbl_product_variants": "/services/supabase/tbl_product_variants",
+    "tbl_orders_details" : "services/supabase/tbl_orders_details",
     "jwt": {
         "verify": "/services/jwt/verify",
         "deauth": "/services/jwt/deauth",

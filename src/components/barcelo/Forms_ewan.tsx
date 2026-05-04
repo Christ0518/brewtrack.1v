@@ -3,9 +3,11 @@ import { Fetch_to } from "@/utilities";
 import { useState } from "react";
 import api_links from "@/config/fetch_links/api_links.json";
 import { useRouter } from "next/navigation";
+import { useAlertModal } from "@/hooks/useAlertModal";
 
 export default function Form() {
     const router = useRouter();
+    const { showAlert, AlertModal } = useAlertModal();
     const [form, setForm] = useState({
         name: "", password: "", shopId: "1"
     });
@@ -17,7 +19,7 @@ export default function Form() {
     const handleSubmit = async(e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!form.name || !form.password) return alert("Field are required");
+        if (!form.name || !form.password) return showAlert("Field are required", { variant: "error", title: "Validation Error" });
 
         const response = await Fetch_to(api_links.auth_login, form);
 
@@ -28,14 +30,16 @@ export default function Form() {
 
         } else {
             
-            alert(response.message);
+            showAlert(response.message || "Login failed", { variant: "error", title: "Login Failed" });
 
         }
 
-    }
+    };
 
     return(
-        <form onSubmit={handleSubmit}>
+        <>
+            <AlertModal />
+            <form onSubmit={handleSubmit}>
             <input 
             type="text" 
             name="name" 
@@ -59,6 +63,7 @@ export default function Form() {
             />
 
             <button>Log In</button>
-        </form>
+            </form>
+        </>
     );
 }

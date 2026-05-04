@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
+import { useAlertModal } from "@/hooks/useAlertModal";
 
 interface CategoryFormProps {
   shopId: string;
@@ -18,6 +19,7 @@ export default function CategoryForm({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [categoryError, setCategoryError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { showAlert, AlertModal } = useAlertModal();
 
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
@@ -40,8 +42,11 @@ export default function CategoryForm({
 
       if (response.success) {
         setNewCategoryName("");
-        alert("Category added successfully!");
-        onSuccess?.();
+        showAlert("Category added successfully!", {
+          variant: "success",
+          title: "Category Added",
+          onClose: onSuccess,
+        });
       } else {
         setCategoryError(response.message || "Failed to add category");
       }
@@ -59,11 +64,13 @@ export default function CategoryForm({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50">
-      <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">
-          Add New Category
-        </h2>
+    <>
+      <AlertModal />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">
+            Add New Category
+          </h2>
 
         {categoryError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
@@ -102,7 +109,8 @@ export default function CategoryForm({
             {loading ? "Adding..." : "Add Category"}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

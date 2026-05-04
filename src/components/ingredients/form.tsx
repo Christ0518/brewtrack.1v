@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
+import { useAlertModal } from "@/hooks/useAlertModal";
 
 interface Ingredient {
   id: number;
@@ -35,6 +36,7 @@ export default function IngredientForm({
   });
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { showAlert, AlertModal } = useAlertModal();
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,14 +95,15 @@ export default function IngredientForm({
         throw new Error(response?.message || "Operation failed");
       }
 
-      alert(
+      showAlert(
         `Ingredient ${
           mode === "delete"
             ? "deleted"
             : mode === "edit"
             ? "updated"
             : "added"
-        } successfully!`
+        } successfully!`,
+        { variant: "success", title: "Ingredient Saved" }
       );
       onSuccess?.();
     } catch (err: any) {
@@ -113,8 +116,10 @@ export default function IngredientForm({
   // Delete confirmation dialog
   if (mode === "delete") {
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50">
-        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6">
+      <>
+        <AlertModal />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50">
+          <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6">
           <h2 className="text-xl font-bold text-slate-900 mb-2">Delete Ingredient</h2>
           <p className="text-slate-600 mb-6">
             Are you sure you want to delete "{ingredient?.ingredient_name}"? This action cannot be undone.
@@ -134,15 +139,18 @@ export default function IngredientForm({
               {loading ? "Deleting..." : "Delete"}
             </button>
           </div>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // Add/Edit form
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6 my-8">
+    <>
+      <AlertModal />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50 overflow-y-auto">
+        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6 my-8">
         <h2 className="text-xl font-bold text-slate-900 mb-4">
           {mode === "edit" ? "Edit Ingredient" : "Add Ingredient"}
         </h2>
@@ -238,7 +246,8 @@ export default function IngredientForm({
             </button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

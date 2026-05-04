@@ -5,7 +5,10 @@ import Sidebar from "@/components/sidebar";
 import { IngredientsPage } from "@/components/ingredients";
 
 export default function IngredientsRoute() {
-  const [shopId, setShopId] = useState("1");
+  const [shopId, setShopId] = useState(() => {
+    if (typeof window === "undefined") return "1";
+    return localStorage.getItem("shopId") || "1";
+  });
 
   useEffect(() => {
     const storedShopId = localStorage.getItem("shopId");
