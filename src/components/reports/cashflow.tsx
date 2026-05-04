@@ -363,9 +363,13 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                 }`}
               >
                 {modal.type === "success" ? (
-                  <FiCheckCircle size={24} className="text-green-600" />
+                  <span className="text-green-600 inline-flex">
+                    <FiCheckCircle size={24} />
+                  </span>
                 ) : (
-                  <FiAlertCircle size={24} className="text-red-600" />
+                  <span className="text-red-600 inline-flex">
+                    <FiAlertCircle size={24} />
+                  </span>
                 )}
               </div>
               <h3 className="text-xl font-bold text-slate-900">{modal.type === "success" ? "Success" : "Error"}</h3>

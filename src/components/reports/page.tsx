@@ -537,7 +537,9 @@ export default function ReportsPage() {
               <div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
                   <div className="p-2.5 rounded-lg" style={{ backgroundColor: shopColor }}>
-                    <FiTrendingUp className="text-white text-xl" />
+                    <span className="text-white text-xl inline-flex">
+                      <FiTrendingUp />
+                    </span>
                   </div>
                   Sales Report
                 </h1>
@@ -548,7 +550,9 @@ export default function ReportsPage() {
 
           <div className="bg-white rounded-2xl border border-slate-200 p-4 lg:p-6 mb-4 shadow-sm">
             <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <FiCalendar className={{ color: shopColor }} size={18} />
+              <span style={{ color: shopColor, display: "inline-flex" }}>
+                <FiCalendar size={18} />
+              </span>
               Report Period
             </h3>
 
@@ -626,7 +630,9 @@ export default function ReportsPage() {
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div className="bg-red-50 p-2.5 rounded-lg">
-                  <FiTrendingUp className="text-red-600" size={20} />
+                  <span className="text-red-600 inline-flex">
+                    <FiTrendingUp size={20} />
+                  </span>
                 </div>
               </div>
               <div className="text-xs font-semibold text-slate-600 uppercase mb-1">Total Discounts</div>
@@ -731,7 +737,9 @@ export default function ReportsPage() {
             {filterOrdersByPeriod.length === 0 ? (
               <div className="text-center py-12">
                 <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FiShoppingCart className="text-slate-400 text-2xl" />
+                  <span className="text-slate-400 text-2xl inline-flex">
+                    <FiShoppingCart />
+                  </span>
                 </div>
                 <p className="text-base text-slate-600 font-medium">No orders found for this period</p>
               </div>
@@ -771,9 +779,9 @@ export default function ReportsPage() {
                                       x{item.quantity}
                                     </span>
                                   </div>
-                                  {item.discount_type && item.discount > 0 && (
+                                  {item.discount_type && (item.discount ?? 0) > 0 && (
                                     <div className="text-xs font-bold text-red-600">
-                                      {item.discount_type.toUpperCase()} discount applied
+                                      {String(item.discount_type).toUpperCase()} discount applied
                                     </div>
                                   )}
                                 </div>
@@ -849,7 +857,15 @@ export default function ReportsPage() {
               <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all">
                 <div className="flex items-center gap-3 mb-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${modal.type === "success" ? "bg-green-100" : "bg-red-100"}`}>
-                    {modal.type === "success" ? <FiCheckCircle size={24} className="text-green-600" /> : <FiAlertCircle size={24} className="text-red-600" />}
+                    {modal.type === "success" ? (
+                      <span className="text-green-600 inline-flex">
+                        <FiCheckCircle size={24} />
+                      </span>
+                    ) : (
+                      <span className="text-red-600 inline-flex">
+                        <FiAlertCircle size={24} />
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-xl font-bold text-slate-900">{modal.type === "success" ? "Success" : "Error"}</h3>
                 </div>

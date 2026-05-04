@@ -435,7 +435,9 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
           <div className="p-8 text-center border-t">
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: `${brandColor}20` }}>
-                <FiCheckCircle size={32} style={{ color: brandColor }} />
+                <span style={{ color: brandColor, display: "inline-flex" }}>
+                  <FiCheckCircle size={32} />
+                </span>
               </div>
             </div>
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Order Placed!</h2>

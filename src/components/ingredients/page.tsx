@@ -312,7 +312,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
                 <div className={`${isShopTwo ? "bg-yellow-500" : "bg-blue-700"} p-2.5 rounded-lg`}>
-                  <FiPackage className="text-white text-xl" />
+                  <span className="text-white text-xl inline-flex">
+                    <FiPackage />
+                  </span>
                 </div>
                 Ingredient Management
               </h1>
@@ -343,7 +345,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <div className={`${isShopTwo ? "bg-yellow-100" : "bg-blue-50"} p-2.5 rounded-lg`}>
-                <FiPackage className={isShopTwo ? "text-yellow-700" : "text-blue-700"} size={20} />
+                <span className={isShopTwo ? "text-yellow-700" : "text-blue-700"} style={{ display: "inline-flex" }}>
+                  <FiPackage size={20} />
+                </span>
               </div>
             </div>
             <div className="text-xs font-semibold text-slate-600 uppercase mb-1">Total Ingredients</div>
@@ -353,7 +357,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-green-50 p-2.5 rounded-lg">
-                <FiCheckCircle className="text-green-600" size={20} />
+                <span className="text-green-600" style={{ display: "inline-flex" }}>
+                  <FiCheckCircle size={20} />
+                </span>
               </div>
             </div>
             <div className="text-xs font-semibold text-slate-600 uppercase mb-1">Normal Stock</div>
@@ -365,7 +371,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-red-50 p-2.5 rounded-lg">
-                <FiAlertCircle className="text-red-600" size={20} />
+                <span className="text-red-600" style={{ display: "inline-flex" }}>
+                  <FiAlertCircle size={20} />
+                </span>
               </div>
             </div>
             <div className="text-xs font-semibold text-slate-600 uppercase mb-1">Low Stock Alert</div>
@@ -378,7 +386,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
         <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
           <div className="flex flex-col lg:flex-row gap-3">
             <div className="flex-1 relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 inline-flex">
+                <FiSearch size={18} />
+              </span>
               <input
                 type="text"
                 placeholder="Search ingredients..."
@@ -410,7 +420,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
         {lowStockCount > 0 && filterStock !== "low" && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
-              <FiAlertCircle className="text-red-600 text-xl flex-shrink-0" />
+              <span className="text-red-600 text-xl flex-shrink-0 inline-flex">
+                <FiAlertCircle />
+              </span>
               <div className="flex-1">
                 <h4 className="font-bold text-red-800 mb-2 text-sm">Low Stock Alert</h4>
                 <div className="text-sm text-red-700 space-y-1 mb-3">
@@ -454,7 +466,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
 
           <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
             <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 inline-flex">
+                <FiSearch size={18} />
+              </span>
               <input
                 type="text"
                 placeholder="Search add-ons..."
@@ -472,7 +486,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           ) : filteredAddOns.length === 0 ? (
             <div className="bg-white rounded-lg border border-slate-200 p-12 text-center mb-4">
               <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FiPackage className="text-slate-400 text-2xl" />
+                <span className="text-slate-400 text-2xl inline-flex">
+                  <FiPackage />
+                </span>
               </div>
               <h3 className="text-lg font-bold text-slate-900 mb-2">No Add-Ons Yet</h3>
               <p className="text-slate-600 text-sm mb-6">
@@ -568,7 +584,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
         {filteredIngredients.length === 0 ? (
           <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
             <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FiPackage className="text-slate-400 text-2xl" />
+              <span className="text-slate-400 text-2xl inline-flex">
+                <FiPackage />
+              </span>
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">No Ingredients Found</h3>
             <p className="text-slate-600 text-sm mb-6">
@@ -610,7 +628,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <div className={`${isShopTwo ? "bg-yellow-100" : "bg-blue-50"} p-2 rounded-lg`}>
-                              <FiPackage className={isShopTwo ? "text-yellow-700" : "text-blue-700"} size={16} />
+                              <span className={isShopTwo ? "text-yellow-700" : "text-blue-700"} style={{ display: "inline-flex" }}>
+                                <FiPackage size={16} />
+                              </span>
                             </div>
                             <span className="font-semibold text-slate-900 text-sm">{item.ingredient_name}</span>
                           </div>
@@ -690,7 +710,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <FiAlertCircle size={24} className="text-red-600" />
+                <span className="text-red-600" style={{ display: "inline-flex" }}>
+                  <FiAlertCircle size={24} />
+                </span>
               </div>
               <h3 className="text-xl font-bold text-slate-900">Confirm Delete</h3>
             </div>

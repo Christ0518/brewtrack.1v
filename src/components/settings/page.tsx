@@ -22,7 +22,7 @@ type UserFormState = {
 	name: string;
 	first_name: string;
 	last_name: string;
-	role: "" | UserRole;
+	role: string;
 	password: string;
 };
 
@@ -416,7 +416,9 @@ export default function SettingsPage() {
 							<div>
 								<h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
 									<div className="p-2.5 rounded-lg" style={{ backgroundColor: shopColor }}>
-										<FiUser className={theme.accentTextColor === "#0f172a" ? "text-slate-900 text-xl" : "text-white text-xl"} />
+										<span className={theme.accentTextColor === "#0f172a" ? "text-slate-900 text-xl inline-flex" : "text-white text-xl inline-flex"}>
+											<FiUser />
+										</span>
 									</div>
 									User Management
 								</h1>
@@ -440,7 +442,9 @@ export default function SettingsPage() {
 						<div className="bg-white rounded-lg border border-slate-200 p-4 lg:p-6 mb-4">
 							<div className="flex items-center justify-between mb-4">
 								<h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-									{editingId ? <FiEdit style={{ color: shopColor }} size={18} /> : <FiUserPlus style={{ color: shopColor }} size={18} />}
+									<span style={{ color: shopColor, display: "inline-flex" }}>
+										{editingId ? <FiEdit size={18} /> : <FiUserPlus size={18} />}
+									</span>
 									{editingId ? "Edit User" : "Add New User"}
 								</h3>
 								<button
@@ -561,7 +565,9 @@ export default function SettingsPage() {
 						) : users.length === 0 ? (
 							<div className="text-center py-12">
 								<div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-									<FiUser className="text-slate-400 text-2xl" />
+									<span className="text-slate-400 text-2xl inline-flex">
+										<FiUser />
+									</span>
 								</div>
 								<p className="text-base font-semibold text-slate-900 mb-1">No users found</p>
 								<p className="text-slate-600 text-sm">Click Add New User to get started</p>
