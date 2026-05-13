@@ -32,7 +32,10 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
-   
+
+      - name: Installing with Next.js
+        run: pnpm install
+        working-directory: ./
 
       - name: Checking ESLint with Next.js
         run: pnpm run lint
