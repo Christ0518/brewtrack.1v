@@ -1,5 +1,5 @@
 import { use } from "react";
-import CustomerOrdering from "@/components/MobileOrder/page";
+import CustomerOrdering from "@/components/MobileOrder";
 
 interface Props {
   params: Promise<{

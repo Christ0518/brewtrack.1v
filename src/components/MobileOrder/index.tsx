@@ -99,7 +99,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
   const [selectedAddOns, setSelectedAddOns] = useState<Record<string, boolean>>({});
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
@@ -1006,10 +1006,8 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
                   const selectedAddOnsArray = Object.entries(selectedAddOns)
                     .filter(([_, selected]) => selected)
-                    .map(([addonId]) => {
-                      const addon = addOns.find((a) => a.id === addonId);
-                      return addon!;
-                    });
+                    .map(([addonId]) => addOns.find((a) => a.id === addonId))
+                    .filter((addon): addon is AddOn => Boolean(addon));
 
                   addToCart(selectedProduct, selectedVariant, selectedAddOnsArray);
                 }}

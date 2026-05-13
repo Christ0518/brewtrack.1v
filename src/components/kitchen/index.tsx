@@ -114,6 +114,14 @@ export default function KitchenDisplay() {
     };
 
     initializeOrders();
+
+    const refreshInterval = setInterval(() => {
+      loadOrders().catch((error) => {
+        console.error("Failed to refresh kitchen orders:", error);
+      });
+    }, 5000);
+
+    return () => clearInterval(refreshInterval);
   }, [router]);
 
   useEffect(() => {

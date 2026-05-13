@@ -1,4 +1,4 @@
-import CustomerOrdering from "@/components/MobileOrder/page";
+import CustomerOrdering from "@/components/MobileOrder";
 
 export default function OrderPage() {
   return <CustomerOrdering />;
