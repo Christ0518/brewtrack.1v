@@ -191,7 +191,7 @@ export default function KitchenDisplay() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-[#073dbe] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-600 font-medium">Loading kitchen display...</p>
+          <p className="text-slate-700 font-medium">Loading kitchen display...</p>
         </div>
       </div>
     );
@@ -202,21 +202,21 @@ export default function KitchenDisplay() {
   const completedOrders = orders.filter((o) => o.status === "completed");
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 lg:p-6">
+    <div className="min-h-screen bg-white p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl lg:text-4xl font-bold text-white">
+              <h1 className="text-3xl lg:text-4xl font-bold text-slate-900">
                 Kitchen Display System
               </h1>
-              <p className="text-slate-400 mt-2">
+              <p className="text-slate-600 mt-2">
                 {orders.length} total orders • {pendingOrders.length} pending • {preparingOrders.length} preparing
               </p>
             </div>
             <div className="text-right">
-              <p className="text-slate-400 text-sm mb-3">
+              <p className="text-slate-600 text-sm mb-3">
                 {new Date().toLocaleTimeString()}
               </p>
               <button
@@ -235,7 +235,7 @@ export default function KitchenDisplay() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-slate-900">
                 Pending ({pendingOrders.length})
               </h2>
             </div>
@@ -317,7 +317,7 @@ export default function KitchenDisplay() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-slate-900">
                 Preparing ({preparingOrders.length})
               </h2>
             </div>
@@ -388,7 +388,7 @@ export default function KitchenDisplay() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-slate-900">
                 Completed ({completedOrders.length})
               </h2>
             </div>
