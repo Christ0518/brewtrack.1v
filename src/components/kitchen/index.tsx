@@ -31,6 +31,7 @@ export default function KitchenDisplay() {
     const storedShopId = localStorage.getItem("shopId") || "1";
 
     const response = await fetch(api_links.tbl_orders, {
+      cache: "no-store",
       headers: {
         "x-shop-id": storedShopId,
       },

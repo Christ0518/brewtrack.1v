@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 
 // CREATE ORDER with inventory deduction
 export async function POST(req: NextRequest) {
@@ -215,7 +218,11 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json(ordersWithItems);
+    return NextResponse.json(ordersWithItems, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
   } catch (error: any) {
     console.error("Get orders error:", error);
     return NextResponse.json(
