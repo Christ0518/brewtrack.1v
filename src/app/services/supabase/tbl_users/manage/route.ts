@@ -66,7 +66,6 @@ const parseShopId = (req: NextRequest): number | null => {
 
 const buildRolePayload = (role: string) => ({
   role,
-  user_role: role,
 });
 
 export async function GET(req: NextRequest) {
@@ -124,26 +123,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      const fallbackPayload = {
-        name: body.name,
-        first_name: body.first_name,
-        last_name: body.last_name,
-        password: hashedPassword,
-        shop_id: shopId,
-        user_role: body.role,
-      };
-
-      const { data: fallbackData, error: fallbackError } = await supabaseServer
-        .from("tbl_users")
-        .insert(fallbackPayload)
-        .select("*")
-        .single();
-
-      if (fallbackError) {
-        return NextResponse.json({ success: false, message: fallbackError.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ success: true, data: normalizeUser(fallbackData as UserRow) }, { status: 201 });
+      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data: normalizeUser(data as UserRow) }, { status: 201 });
@@ -187,26 +167,7 @@ export async function PUT(req: NextRequest) {
       .single();
 
     if (error) {
-      const fallbackPayload = {
-        name: body.name,
-        first_name: body.first_name,
-        last_name: body.last_name,
-        user_role: body.role,
-      };
-
-      const { data: fallbackData, error: fallbackError } = await supabaseServer
-        .from("tbl_users")
-        .update(fallbackPayload)
-        .eq("id", id)
-        .eq("shop_id", shopId)
-        .select("*")
-        .single();
-
-      if (fallbackError) {
-        return NextResponse.json({ success: false, message: fallbackError.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ success: true, data: normalizeUser(fallbackData as UserRow) }, { status: 200 });
+      return NextResponse.json({ success: false, message: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data: normalizeUser(data as UserRow) }, { status: 200 });

@@ -307,7 +307,7 @@ export default function CashierDisplay() {
   const calculateSubtotal = () => {
     return cart.reduce((sum, item) => {
       const itemPrice = item.price - (item.discount || 0);
-      const addOnsPrice = item.addOns.reduce((acc, addon) => acc + addon.price, 0);
+      const addOnsPrice = item.addOns.reduce((acc, addon) => acc + (addon?.price || 0), 0);
       return sum + (itemPrice + addOnsPrice) * item.quantity;
     }, 0);
   };
@@ -706,7 +706,7 @@ export default function CashierDisplay() {
       {/* Variant Modal */}
       {showVariantModal && selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-96 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl p-6 max-h-[85vh] overflow-y-auto md:w-3/4 xl:w-1/2">
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">{selectedProduct.product_name}</h3>
@@ -738,7 +738,7 @@ export default function CashierDisplay() {
                 >
                   <div className="flex justify-between items-center">
                     <p className="font-bold text-slate-900">{variant.name}</p>
-                    <p className="font-bold" style={{ color: brandColor }}>₱{Number(variant.price).toFixed(2)}</p>
+                    <p className="font-bold" style={{ color: brandColor }}>₱{Number(variant.price)}</p>
                   </div>
                 </button>
               ))}
@@ -769,7 +769,7 @@ export default function CashierDisplay() {
                         <p className="text-sm font-medium text-slate-900">{addon.name}</p>
                         <p className="text-xs text-slate-500">{addon.quantity} {addon.unit}</p>
                       </div>
-                      <p className="text-sm font-semibold" style={{ color: brandColor }}>+₱{Number(addon.price).toFixed(2)}</p>
+                      <p className="text-sm font-semibold" style={{ color: brandColor }}>+₱{Number(addon.price)}</p>
                     </label>
                   ))}
                 </div>
@@ -797,10 +797,8 @@ export default function CashierDisplay() {
 
                   const selectedAddOnsArray = Object.entries(selectedAddOns)
                     .filter(([_, selected]) => selected)
-                    .map(([addonId]) => {
-                      const addon = addOns.find((a) => a.id === addonId);
-                      return addon!;
-                    });
+                    .map(([addonId]) => addOns.find((a) => a.id === addonId))
+                    .filter((addon): addon is AddOn => Boolean(addon));
 
                   addToCart(selectedProduct, selectedVariant, selectedAddOnsArray);
                 }}
@@ -873,9 +871,9 @@ export default function CashierDisplay() {
                         <div className="flex-1">
                           <h4 className="font-bold text-slate-900 text-sm">{item.product_name}</h4>
                           <p className="text-xs text-slate-600">{item.variant_name}</p>
-                          {item.addOns.length > 0 && (
+                          {item.addOns.some((addon) => Boolean(addon)) && (
                             <div className="mt-1 space-y-0.5">
-                              {item.addOns.map((addon) => (
+                              {item.addOns.filter((addon): addon is AddOn => Boolean(addon)).map((addon) => (
                                 <p key={addon.id} className="text-xs text-orange-600">
                                   + {addon.name}
                                 </p>

@@ -646,13 +646,13 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                         <td className="px-4 py-3">
                           <div className="text-sm">
                             <span className="text-slate-700 font-medium block">
-                              {item.unit_price !== null ? `₱${Number(item.unit_price).toFixed(2)}` : "-"}
+                              {item.unit_price !== null ? `₱${item.unit_price}` : "-"}
                             </span>
                             <span className="text-slate-500 text-xs">per unit</span>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-slate-700 font-bold text-sm">₱{itemValue.toFixed(2)}</span>
+                          <span className="text-slate-700 font-bold text-sm">₱{itemValue}</span>
                         </td>
                         <td className="px-4 py-3">
                           {isLowStock ? (

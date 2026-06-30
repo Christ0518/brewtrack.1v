@@ -33,12 +33,18 @@ function mapTransaction(row: any) {
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
+    const headerShopId = req.headers.get("x-shop-id");
+    const shopId = url.searchParams.get("shop_id") || headerShopId;
     const id = url.searchParams.get("id");
     const type = url.searchParams.get("type");
     const startDate = url.searchParams.get("startDate");
     const endDate = url.searchParams.get("endDate");
     const summary = url.searchParams.get("summary");
     const day = url.searchParams.get("date");
+
+    if (!shopId) {
+      return NextResponse.json({ message: "shop_id is required" }, { status: 400 });
+    }
 
     if (id) {
       if (isNaN(Number(id))) {
@@ -49,6 +55,7 @@ export async function GET(req: NextRequest) {
         .from("tbl_cashflow")
         .select("*")
         .eq("id", id)
+        .eq("shop_id", shopId)
         .single();
 
       if (error || !data) {
@@ -61,6 +68,7 @@ export async function GET(req: NextRequest) {
     let query = supabaseServer
       .from("tbl_cashflow")
       .select("*")
+      .eq("shop_id", shopId)
       .order("date", { ascending: false })
       .order("created_at", { ascending: false });
 

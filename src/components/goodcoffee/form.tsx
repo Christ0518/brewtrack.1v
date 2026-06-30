@@ -78,33 +78,57 @@ export default function Form() {
     return(
         <>
             <AlertModal />
-            <form onSubmit={handleSubmit}>
-            <input 
-            type="text" 
-            name="name" 
-            id="name" 
-            value={form.name}
-            onChange={handleChange}
-            autoComplete="username"
-            placeholder="Enter Your Username"
-            required
-            className={`border ${theme.accentBorderClass} ${theme.accentRingClass} rounded-lg px-4 py-2 outline-none`}
-            />
+            <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4">
+                <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-lg p-6 sm:p-8">
+                    <div className="mb-6 text-center">
+                        <h1 className="text-2xl font-bold text-slate-900">Good Coffee Login</h1>
+                        <p className="text-sm text-slate-600 mt-1">Sign in to continue to your dashboard</p>
+                    </div>
 
-            <input 
-            type="password" 
-            name="password" 
-            id="password" 
-            value={form.password}
-            onChange={handleChange}
-            autoComplete="password"
-            placeholder="Enter Your Password"
-            required
-            className={`border ${theme.accentBorderClass} ${theme.accentRingClass} rounded-lg px-4 py-2 outline-none`}
-            />
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1">
+                                Username
+                            </label>
+                            <input
+                                type="text"
+                                name="name"
+                                id="name"
+                                value={form.name}
+                                onChange={handleChange}
+                                autoComplete="username"
+                                placeholder="Enter your username"
+                                required
+                                className={`w-full border ${theme.accentBorderClass} ${theme.accentRingClass} rounded-lg px-4 py-2.5 outline-none`}
+                            />
+                        </div>
 
-            <button className={`${theme.accentClass} ${theme.accentHoverClass} rounded-lg px-4 py-2`}>Log In</button>
-            </form>
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+                                Password
+                            </label>
+                            <input
+                                type="password"
+                                name="password"
+                                id="password"
+                                value={form.password}
+                                onChange={handleChange}
+                                autoComplete="current-password"
+                                placeholder="Enter your password"
+                                required
+                                className={`w-full border ${theme.accentBorderClass} ${theme.accentRingClass} rounded-lg px-4 py-2.5 outline-none`}
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            className={`w-full ${theme.accentClass} ${theme.accentHoverClass} rounded-lg px-4 py-2.5 font-semibold transition-colors`}
+                        >
+                            Log In
+                        </button>
+                    </form>
+                </div>
+            </div>
         </>
     );
 }

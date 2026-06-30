@@ -27,6 +27,17 @@ export default function KitchenDisplay() {
 
   const buildOrderNumber = (id: number) => `ORD-${String(id).padStart(3, "0")}`;
 
+  const getOrderTimestamp = (createdAt: string) => {
+const t = new Date(createdAt).getTime();
+return Number.isNaN(t) ? 0 : t;
+};
+
+const sortByQueueOrder = (a: Order, b: Order) => {
+const timeDiff = getOrderTimestamp(a.created_at) - getOrderTimestamp(b.created_at);
+if (timeDiff !== 0) return timeDiff;
+return a.id - b.id;
+};
+
   const loadOrders = async () => {
     const storedShopId = localStorage.getItem("shopId") || "1";
 
@@ -59,7 +70,7 @@ export default function KitchenDisplay() {
       customer_name: order.customer_name || undefined,
     }));
 
-    setOrders(normalizedOrders);
+    setOrders([...normalizedOrders].sort(sortByQueueOrder));
   };
 
   const handleLogout = async () => {
@@ -147,26 +158,43 @@ export default function KitchenDisplay() {
       }
 
       setOrders((currentOrders) =>
-        currentOrders.map((order) =>
+          currentOrders
+          .map((order) =>
           order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      );
+          )
+          .sort(sortByQueueOrder)
+        );  
     } catch (error) {
       console.error("Failed to update order status:", error);
     }
   };
 
   const getTimeElapsed = (createdAt: string) => {
-    const minutes = Math.floor(
-      (Date.now() - new Date(createdAt).getTime()) / 60000
-    );
+    const createdMs = new Date(createdAt).getTime();
+    if (Number.isNaN(createdMs)) return "Unknown time";
+
+    const diffMs = Math.max(0, now.getTime() - createdMs);
+    const minutes = Math.floor(diffMs / 60000);
+
     if (minutes < 1) return "Just now";
-    if (minutes === 1) return "1 min";
-    return `${minutes} mins`;
+    if (minutes < 60) return minutes === 1 ? "1 min" : `${minutes} mins`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours === 1 ? "1 hr" : `${hours} hrs`;
+
+    const days = Math.floor(hours / 24);
+    return days === 1 ? "1 day" : `${days} days`;
   };
 
   const getCurrentDateTime = () => {
-    return `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+    return now.toLocaleString([], {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -226,7 +254,11 @@ export default function KitchenDisplay() {
             </div>
             <div className="text-right">
               <p className="text-slate-600 text-sm mb-3">
-                {new Date().toLocaleTimeString()}
+                {now.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
               </p>
               <button
                 onClick={handleLogout}
@@ -381,7 +413,7 @@ export default function KitchenDisplay() {
                       onClick={() => handleStatusChange(order.id, "completed")}
                       className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded transition-colors"
                     >
-                      Mark Complete
+                      Done
                     </button>
                   </div>
                 ))

@@ -8,7 +8,7 @@ import { Fetch_to } from "@/utilities";
 import { useRouter } from "next/navigation";
 import { getShopTheme } from "@/lib/theme";
 
-type UserRole = "admin" ;
+type UserRole = "admin" | "cashier" | "kitchen";
 
 type UserItem = {
 	id: number;
@@ -358,7 +358,7 @@ export default function SettingsPage() {
 			name: user.name,
 			first_name: user.first_name,
 			last_name: user.last_name,
-			role: user.role === "admin" ? "admin" : "cashier",
+			role: ["admin", "cashier", "kitchen"].includes(user.role) ? user.role : "cashier",
 			password: "",
 		});
 		setShowForm(true);
@@ -400,6 +400,8 @@ export default function SettingsPage() {
 				return "bg-slate-200 text-slate-900";
 			case "cashier":
 				return theme.accentSoftClass;
+			case "kitchen":
+				return "bg-amber-100 text-amber-700";
 			default:
 				return "bg-slate-100 text-slate-700";
 		}
@@ -511,6 +513,7 @@ export default function SettingsPage() {
 										<option value="">Select a role</option>
 										<option value="admin">Admin</option>
 										<option value="cashier">Cashier</option>
+								<option value="kitchen">Kitchen</option>
 									</select>
 								</div>
 

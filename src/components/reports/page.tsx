@@ -359,20 +359,22 @@ export default function ReportsPage() {
   const exportToCSV = () => {
     try {
       const period = netIncomeByPeriod[selectedNetIncomePeriod];
+      const money = (v: number) => Number(v || 0).toFixed(2);
+
       const rows: string[][] = [
         [`${shopName} - Sales Report`],
         ["Period", getPeriodLabel()],
         ["Generated", new Date().toLocaleString()],
         [],
         ["Financial Summary"],
-        ["Gross Income", formatMoney(period.grossIncome)],
-        ["Discounts", `-${formatMoney(period.discounts).replace("₱", "")}`],
-        ["Operating Expenses", `-${formatMoney(period.expenses).replace("₱", "")}`],
-        ["Net Income", formatMoney(period.netIncome)],
+        ["Gross Income", money(period.grossIncome)],
+        ["Discounts", `-${money(period.discounts)}`],
+        ["Operating Expenses", `-${money(period.expenses)}`],
+        ["Net Income", money(period.netIncome)],
         [],
         ["Top Selling Products"],
         ["Product", "Variant", "Quantity Sold", "Revenue"],
-        ...stats.topProducts.map((item) => [item.product, item.variant, String(item.quantity), formatMoney(item.revenue)]),
+        ...stats.topProducts.map((item) => [item.product, item.variant, String(item.quantity), money(item.revenue)]),
         [],
         ["Order ID", "Date & Time", "Customer", "Items", "Discount", "Total"],
         ...filterOrdersByPeriod.map((order) => [
@@ -380,8 +382,8 @@ export default function ReportsPage() {
           new Date(order.created_at).toLocaleString(),
           order.customer_name || "Walk-in",
           String(order.items?.length || 0),
-          getDiscountAmount(order) > 0 ? formatMoney(getDiscountAmount(order)) : "-",
-          formatMoney(Number(order.total || 0)),
+          getDiscountAmount(order) > 0 ? `-${money(getDiscountAmount(order))}` : money(0),
+          money(Number(order.total || 0)),
         ]),
       ];
 
