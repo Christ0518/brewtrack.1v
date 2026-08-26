@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 
 const protectedRoutes = ["/dashboard", "/cashier", "/kitchen", "/order"];
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/barcelo" || request.nextUrl.pathname === "/goodcoffee") {
     return NextResponse.redirect(new URL("/", request.url));
   }
@@ -20,8 +19,21 @@ export function middleware(request: NextRequest) {
   }
 
   try {
-    jwt.verify(token, process.env.JWT_SECRET || "");
-    return NextResponse.next();
+    const verificationResponse = await fetch(new URL("/services/jwt/verify", request.url), {
+      method: "POST",
+      headers: {
+        cookie: request.headers.get("cookie") || `token=${token}`,
+      },
+      cache: "no-store",
+    });
+
+    if (verificationResponse.ok) {
+      return NextResponse.next();
+    }
+
+    const response = NextResponse.redirect(new URL("/", request.url));
+    response.cookies.delete("token");
+    return response;
   } catch {
     const response = NextResponse.redirect(new URL("/", request.url));
     response.cookies.delete("token");
