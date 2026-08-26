@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
+import { getShopTheme } from "@/lib/theme";
 import { buildBarceloReceiptHtml } from "@/components/receipt/barcelo";
 import { buildGoodcoffeeReceiptHtml } from "@/components/receipt/goodcoffee";
-import LoadingPage from "@/components/LoadingPage";
 import {
   FiShoppingCart,
   FiSearch,
@@ -81,10 +81,15 @@ interface Modal {
   onConfirm?: () => void;
 }
 
+interface PopularProduct {
+  name: string;
+  quantity: number;
+  image?: string;
+}
+
 export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: string }) {
   const [loading, setLoading] = useState(true);
-  const [shopId, setShopId] = useState<string>("");
-  const [shops, setShops] = useState<ShopInfo[]>([]);
+  const [shopId, setShopId] = useState<string>(defaultShopId ? String(defaultShopId) : "1");
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -93,7 +98,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [tableNumber, setTableNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -104,6 +109,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [receiptHtml, setReceiptHtml] = useState<string>("");
+  const [popularProduct, setPopularProduct] = useState<PopularProduct | null>(null);
   const [modal, setModal] = useState<Modal>({
     isOpen: false,
     type: "info",
@@ -111,11 +117,16 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
     message: "",
   });
 
-  const brandColor = shopInfo?.brand_color || "#073dbe";
+  const brandColor = getShopTheme(shopId).accentColor;
 
   const getProductVariants = (product: Product) => product.tbl_product_variants || product.variants || [];
 
   const getVariantStock = (variant: Variant) => Number(variant.calculated_stock ?? variant.quantity ?? 0);
+
+  const isAddOnOutOfStock = (addon: AddOn) => {
+    const quantity = Number(addon.quantity);
+    return !Number.isFinite(quantity) || quantity <= 0;
+  };
 
   const isProductDeleted = (product: Product) => {
     return product.is_deleted === true || product.is_deleted === 1 || product.is_deleted === "1" || product.is_deleted === "true";
@@ -132,23 +143,6 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
     }
   }, [defaultShopId]);
 
-  // Load shops on mount
-  useEffect(() => {
-    const loadShops = async () => {
-      try {
-        const res = await fetch(api_links.tbl_shops);
-        if (res.ok) {
-          const data = await res.json();
-          setShops(Array.isArray(data) ? data : []);
-        }
-      } catch (error) {
-        console.error("Error loading shops:", error);
-      }
-    };
-
-    loadShops();
-  }, []);
-
   // Load products when shop changes
   useEffect(() => {
     if (!shopId) return;
@@ -156,6 +150,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
     const loadData = async () => {
       try {
         setLoading(true);
+        let normalizedProducts: Product[] = [];
 
         // Load shop info
         const shopRes = await fetch(`${api_links.tbl_shops}?id=${shopId}`);
@@ -175,7 +170,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
         const productsRes = await fetch(`${api_links.tbl_products}?shop_id=${shopId}`);
         if (productsRes.ok) {
           const productsData = await productsRes.json();
-          const normalizedProducts = Array.isArray(productsData)
+          normalizedProducts = Array.isArray(productsData)
             ? productsData
             : Array.isArray(productsData?.products)
               ? productsData.products
@@ -200,6 +195,51 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
             return String(addon.shop_id) === String(shopId);
           });
           setAddOns(filteredAddOns);
+        }
+
+        // Find the most purchased product from recent completed orders.
+        try {
+          const ordersRes = await fetch(`${api_links.tbl_orders}?shop_id=${shopId}`, {
+            cache: "no-store",
+            headers: { "x-shop-id": shopId },
+          });
+
+          if (ordersRes.ok) {
+            const ordersData = await ordersRes.json();
+            const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
+            const productTotals = new Map<string, number>();
+
+            (Array.isArray(ordersData) ? ordersData : [])
+              .filter((order: any) => {
+                const status = String(order.status || "").toLowerCase();
+                const createdAt = new Date(order.created_at || "").getTime();
+                return status !== "pending" && status !== "awaiting_acceptance" && createdAt >= recentCutoff;
+              })
+              .forEach((order: any) => {
+                (Array.isArray(order.items) ? order.items : []).forEach((item: any) => {
+                  const productName = String(item.product_name || "").trim();
+                  if (!productName) return;
+                  productTotals.set(productName, (productTotals.get(productName) || 0) + (Number(item.quantity) || 0));
+                });
+              });
+
+            const topProduct = [...productTotals.entries()].sort((a, b) => b[1] - a[1])[0];
+            if (topProduct) {
+              const matchingProduct = normalizedProducts.find(
+                (product: Product) => product.product_name === topProduct[0]
+              );
+              setPopularProduct({
+                name: topProduct[0],
+                quantity: topProduct[1],
+                image: matchingProduct?.image,
+              });
+            } else {
+              setPopularProduct(null);
+            }
+          }
+        } catch (error) {
+          console.warn("Could not load popular product:", error);
+          setPopularProduct(null);
         }
 
         setSelectedCategory("all");
@@ -252,6 +292,12 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   };
 
   const addToCart = (product: Product, variant: Variant, selectedAddOnsArray: AddOn[]) => {
+    const unavailableAddOn = selectedAddOnsArray.find(isAddOnOutOfStock);
+    if (unavailableAddOn) {
+      showModal("error", "Add-On Unavailable", `${unavailableAddOn.name} is out of stock.`);
+      return;
+    }
+
     const newItem: CartItem = {
       id: `${Date.now()}-${Math.random()}`,
       product_id: product.id,
@@ -313,9 +359,9 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
       const total = calculateTotal();
       const orderPayload = {
         customer_name: customerName.trim(),
-        customer_phone: customerPhone ? parseInt(customerPhone, 10) : null,
+        table_number: tableNumber ? parseInt(tableNumber, 10) : null,
         order_type: "dine-in",
-        status: "pending",
+        status: "awaiting_acceptance",
         total,
         discount_type: "none",
         discount: 0,
@@ -423,7 +469,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
             <div className="p-4">
               <iframe
                 srcDoc={receiptHtml}
-                className="w-full border-0 bg-white rounded-lg shadow-sm overflow-hidden"
+                className="w-full border-0 bg-white rounded-md shadow-sm overflow-hidden"
                 style={{ height: "600px" }}
                 title="Order Receipt"
               />
@@ -451,7 +497,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
             <div className="space-y-3">
               <button
                 onClick={() => window.print()}
-                className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 rounded-lg transition-all"
+                className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 rounded-md transition-all"
                 style={{ backgroundColor: brandColor }}
               >
                 <FiPrinter size={20} /> Print Receipt
@@ -461,11 +507,11 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                   setOrderSubmitted(false);
                   setSubmittedOrderId("");
                   setCustomerName("");
-                  setCustomerPhone("");
+                  setTableNumber("");
                   setNotes("");
                   setReceiptHtml("");
                 }}
-                className="w-full text-slate-600 font-bold py-3 rounded-lg transition-all bg-slate-100 hover:bg-slate-200"
+                className="w-full text-slate-600 font-bold py-3 rounded-md transition-all bg-slate-100 hover:bg-slate-200"
               >
                 New Order
               </button>
@@ -476,28 +522,12 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
     );
   }
 
-  // Show QR code selection if no shop selected
-  if (!shopId) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">No Shop Selected</h1>
-          <p className="text-slate-600">Please scan a QR code or use a shop link</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <LoadingPage />;
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-24">
-      <div className="max-w-md mx-auto bg-white min-h-screen shadow-sm relative">
+      <div className="w-full mx-auto bg-white min-h-screen shadow-sm relative px-4 sm:px-6 lg:px-8 md:max-w-5xl lg:max-w-6xl">
         {modal.isOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <div className="w-full max-w-sm rounded-md bg-white p-6 shadow-xl">
               <h3 className="text-lg font-bold mb-2 text-slate-800">{modal.title}</h3>
               <p className="text-slate-600 mb-6">{modal.message}</p>
               <button
@@ -505,7 +535,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                   setModal({ ...modal, isOpen: false });
                   modal.onConfirm?.();
                 }}
-                className="w-full text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                className="w-full rounded-md px-4 py-3 font-semibold text-white transition-colors"
                 style={{ backgroundColor: brandColor }}
               >
                 OK
@@ -519,7 +549,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
             <h1 className="text-xl font-bold text-slate-800">{shopInfo?.name || "Menu"}</h1>
             <button
               onClick={() => setCartOpen(true)}
-              className="p-2 relative rounded-full hover:bg-slate-100 transition-colors"
+              className="relative rounded-md p-2 transition-colors hover:bg-slate-100"
               style={{ color: brandColor }}
             >
               <FiShoppingCart size={24} />
@@ -542,7 +572,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl border-transparent focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-sm"
+                className="w-full rounded-md border-transparent bg-slate-100 py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200"
               />
             </div>
           </div>
@@ -550,7 +580,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
           <div className="px-4 pb-4 overflow-x-auto flex gap-2">
             <button
               onClick={() => setSelectedCategory("all")}
-              className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${selectedCategory === "all" ? "text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-all ${selectedCategory === "all" ? "text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               style={selectedCategory === "all" ? { backgroundColor: brandColor } : undefined}
             >
               All ({products.length})
@@ -561,7 +591,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(String(category.id))}
-                  className={`px-4 py-2 rounded-full font-medium text-sm whitespace-nowrap transition-all ${selectedCategory === String(category.id) ? "text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-all ${selectedCategory === String(category.id) ? "text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
                   style={selectedCategory === String(category.id) ? { backgroundColor: brandColor } : undefined}
                 >
                   {category.name} ({count})
@@ -570,6 +600,25 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
             })}
           </div>
         </div>
+
+        {popularProduct && (
+          <section className="mx-4 mt-5 overflow-hidden border border-slate-200 bg-slate-950 text-white shadow-sm sm:mx-6 lg:mx-0">
+            <div className="flex items-center gap-4 p-4 sm:p-5">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden bg-white/10 sm:h-20 sm:w-20">
+                {popularProduct.image ? (
+                  <img src={popularProduct.image} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <FiPackage size={28} className="text-white/50" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300">Popular right now</p>
+                <h2 className="mt-1 truncate text-lg font-black sm:text-xl">{popularProduct.name}</h2>
+                <p className="mt-1 text-sm text-white/65">Ordered {popularProduct.quantity} times in the last 30 days</p>
+              </div>
+            </div>
+          </section>
+        )}
 
         <div className="p-4 space-y-6">
           {filteredProducts.length === 0 ? (
@@ -583,7 +632,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
               {groupedProducts.map((category) => (
                 <div key={category.id}>
                   <h2 className="text-lg font-bold text-slate-800 mb-3">{category.name}</h2>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {category.products.map((product) => {
                       const variants = getProductVariants(product);
                       const hasStock = variants.some((v) => getVariantStock(v) > 0);
@@ -591,8 +640,11 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                       return (
                         <div
                           key={product.id}
-                          onClick={() => hasStock && handleProductClick(product)}
-                          className={`bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden transition-all flex flex-col ${hasStock ? "cursor-pointer hover:shadow-md hover:border-blue-200 active:scale-[0.98]" : "opacity-60 cursor-not-allowed grayscale-[0.5]"}`}
+                          onClick={() => {
+                            if (hasStock) handleProductClick(product);
+                          }}
+                          aria-disabled={!hasStock}
+                          className={`flex flex-col overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm transition-all ${hasStock ? "cursor-pointer hover:border-[#bc9b7a] hover:shadow-md active:scale-[0.98]" : "cursor-not-allowed opacity-60 grayscale-[0.5]"}`}
                         >
                           <div className="h-28 sm:h-32 md:h-36 bg-slate-100 relative shrink-0">
                             {product.image ? (
@@ -628,7 +680,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
               {uncategorizedProducts.length > 0 && (
                 <div>
                   <h2 className="text-lg font-bold text-slate-800 mb-3">Uncategorized</h2>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {uncategorizedProducts.map((product) => {
                       const variants = getProductVariants(product);
                       const hasStock = variants.some((v) => getVariantStock(v) > 0);
@@ -636,8 +688,11 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                       return (
                         <div
                           key={product.id}
-                          onClick={() => hasStock && handleProductClick(product)}
-                          className={`bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden transition-all flex flex-col ${hasStock ? "cursor-pointer hover:shadow-md hover:border-blue-200 active:scale-[0.98]" : "opacity-60 cursor-not-allowed grayscale-[0.5]"}`}
+                          onClick={() => {
+                            if (hasStock) handleProductClick(product);
+                          }}
+                          aria-disabled={!hasStock}
+                          className={`flex flex-col overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm transition-all ${hasStock ? "cursor-pointer hover:border-[#bc9b7a] hover:shadow-md active:scale-[0.98]" : "cursor-not-allowed opacity-60 grayscale-[0.5]"}`}
                         >
                           <div className="h-28 sm:h-32 md:h-36 bg-slate-100 relative shrink-0">
                             {product.image ? (
@@ -674,11 +729,11 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
         </div>
 
         {cart.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-white via-white to-transparent pointer-events-none">
-            <div className="max-w-md mx-auto pointer-events-auto">
+          <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-linear-to-t from-white via-white to-transparent pointer-events-none">
+            <div className="w-full mx-auto pointer-events-auto md:max-w-3xl lg:max-w-4xl">
               <button
                 onClick={() => setCartOpen(true)}
-                className="w-full text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-between shadow-lg transition-transform active:scale-[0.98]"
+                className="flex w-full items-center justify-between rounded-md px-5 py-3.5 font-bold text-white shadow-lg transition-transform active:scale-[0.98]"
                 style={{ backgroundColor: brandColor }}
               >
                 <div className="flex items-center gap-2">
@@ -693,7 +748,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
         {showVariantModal && selectedProduct && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-md bg-white sm:max-w-lg sm:rounded-md md:max-w-2xl">
               <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                 <div>
                   <h3 className="font-bold text-lg text-slate-800">{selectedProduct.product_name}</h3>
@@ -727,7 +782,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           key={variant.id}
                           onClick={() => setSelectedVariant(variant)}
                           disabled={isOutOfStock}
-                          className={`w-full text-left p-4 rounded-xl border-2 transition-all flex justify-between items-center ${isSelected ? "border-blue-500 bg-blue-50/50" : isOutOfStock ? "bg-slate-50 border-slate-100 opacity-50 cursor-not-allowed" : "bg-white border-slate-100 hover:border-blue-200"}`}
+                          className={`flex w-full items-center justify-between rounded-md border-2 p-4 text-left transition-all ${isSelected ? "border-[#6c3030] bg-[#f3e3cf]" : isOutOfStock ? "cursor-not-allowed border-slate-100 bg-slate-50 opacity-50" : "border-slate-100 bg-white hover:border-[#bc9b7a]"}`}
                           style={isSelected ? { borderColor: brandColor } : undefined}
                         >
                           <span className="font-medium text-slate-800">{variant.name}</span>
@@ -752,12 +807,15 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                         return (
                           <label
                             key={addon.id}
-                            className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all ${isSelected ? "border-blue-500 bg-blue-50/50" : "border-slate-100 bg-white hover:border-blue-200"}`}
+                            onClick={(event) => {
+                              if (isAddOnOutOfStock(addon)) event.preventDefault();
+                            }}
+                            className={`flex items-center justify-between rounded-md border-2 p-4 transition-all ${isAddOnOutOfStock(addon) ? "cursor-not-allowed border-red-200 bg-red-50 opacity-60" : isSelected ? "cursor-pointer border-[#6c3030] bg-[#f3e3cf]" : "cursor-pointer border-slate-100 bg-white hover:border-[#bc9b7a]"}`}
                             style={isSelected ? { borderColor: brandColor } : undefined}
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"}`}
+                                className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? "bg-[#6c3030] border-[#6c3030]" : "border-slate-300"}`}
                                 style={isSelected ? { backgroundColor: brandColor, borderColor: brandColor } : undefined}
                               >
                                 {isSelected && <FiCheckCircle size={14} className="text-white" />}
@@ -769,6 +827,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                               type="checkbox"
                               className="hidden"
                               checked={isSelected}
+                              disabled={isAddOnOutOfStock(addon)}
                               onChange={(e) => {
                                 setSelectedAddOns((prev) => ({
                                   ...prev,
@@ -797,7 +856,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                       .filter((addon): addon is AddOn => Boolean(addon));
                     addToCart(selectedProduct, selectedVariant, selectedAddOnsArray);
                   }}
-                  className="w-full text-white font-bold py-3.5 rounded-xl transition-all active:scale-[0.98]"
+                  className="w-full rounded-md py-3.5 font-bold text-white transition-all active:scale-[0.98]"
                   style={{
                     backgroundColor: brandColor,
                     opacity: selectedVariant ? 1 : 0.5,
@@ -820,7 +879,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
         {cartOpen && (
           <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl">
+            <div className="bg-white w-full max-w-md sm:max-w-lg md:max-w-2xl h-full flex flex-col shadow-2xl">
               <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
                 <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2">
                   <FiShoppingCart size={24} style={{ color: brandColor }} />
@@ -855,7 +914,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           (Number(item.price) + item.addOns.reduce((a, b) => a + (Number(b?.price) || 0), 0)) *
                           item.quantity;
                         return (
-                          <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                            <div key={item.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm">
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <h4 className="font-bold text-slate-800">{item.product_name}</h4>
@@ -881,7 +940,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                                 <FiTrash2 size={16} /> Remove
                               </button>
 
-                              <div className="flex items-center gap-3 bg-slate-100 rounded-lg p-1">
+                              <div className="flex items-center gap-3 bg-slate-100 rounded-md p-1">
                                 <button
                                   onClick={() => updateQuantity(item.id, -1)}
                                   className="w-7 h-7 bg-white rounded-md shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900"
@@ -902,7 +961,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                       })}
                     </div>
 
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 space-y-4">
+                    <div className="space-y-4 rounded-md border border-slate-100 bg-white p-5 shadow-sm">
                       <h3 className="font-bold text-slate-800">Customer Details</h3>
 
                       <div>
@@ -912,21 +971,21 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           value={customerName}
                           onChange={(e) => setCustomerName(e.target.value)}
                           placeholder="Juan Dela Cruz"
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Table Number</label>
                         <input
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
                           maxLength={11}
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ""))}
-                          placeholder="0912 345 6789"
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                          value={tableNumber}
+                          onChange={(e) => setTableNumber(e.target.value.replace(/\D/g, ""))}
+                          placeholder="e.g. 12"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                         />
                       </div>
 
@@ -937,7 +996,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           onChange={(e) => setNotes(e.target.value)}
                           placeholder="Less ice, extra sugar..."
                           rows={2}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
                         />
                       </div>
                     </div>
@@ -956,7 +1015,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                   <button
                     onClick={handleCheckout}
                     disabled={!customerName.trim()}
-                    className="w-full text-white font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full rounded-md py-3.5 font-bold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ backgroundColor: brandColor }}
                   >
                     Place Order

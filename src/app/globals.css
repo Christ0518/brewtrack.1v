@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8f1e8;
+  --foreground: #6c3030;
+
+  /* Palette from dashboard page */
+  --brand-blue: #6c3030;
+  --accent-yellow: #bc9b7a;
+  --bg-cream: #f8f1e8;
+  --border-beige: #d6c3af;
+  --text-primary: #6e5338;
+  --tan: #bc9b7a;
+  --deep-brown: #6c3030;
+  --pale-bg: #f6efe3;
+  --chip-bg: #f3e3cf;
 }
 
 @theme inline {
@@ -24,3 +35,61 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+button:focus-visible {
+  outline: 2px solid var(--tan);
+  outline-offset: 2px;
+}
+
+/* Utility classes referencing the palette for non-tailwind usage */
+.bg-cream { background-color: var(--bg-cream); }
+.text-primary { color: var(--text-primary); }
+.border-beige { border-color: var(--border-beige); }
+.bg-pale { background-color: var(--pale-bg); }
+.chip-bg { background-color: var(--chip-bg); }
+.bg-deep { background-color: var(--deep-brown); }
+.bg-tan { background-color: var(--tan); }
+.text-brand-blue { color: var(--brand-blue); }
+.text-accent-yellow { color: var(--accent-yellow); }
+.bg-primary { background-color: var(--text-primary); }
+
+/* Keep legacy brand utility classes aligned with the brown theme. */
+.bg-blue-700, .bg-blue-600, .bg-yellow-500 { background-color: var(--deep-brown) !important; }
+.bg-blue-50, .bg-blue-100, .bg-yellow-100 { background-color: var(--chip-bg) !important; }
+.text-blue-700, .text-blue-600, .text-yellow-700 { color: var(--text-primary) !important; }
+.border-blue-200, .border-blue-600, .border-blue-700, .border-yellow-500 { border-color: var(--border-beige) !important; }
+.hover\:bg-blue-800:hover, .hover\:bg-blue-700:hover, .hover\:bg-yellow-600:hover { background-color: var(--deep-brown) !important; }
+.hover\:border-blue-200:hover, .hover\:border-blue-600:hover { border-color: var(--tan) !important; }
+.focus\:border-blue-700:focus, .focus\:border-blue-600:focus, .focus\:border-yellow-500:focus { border-color: var(--deep-brown) !important; }
+.focus\:ring-blue-100:focus, .focus\:ring-blue-200:focus, .focus\:ring-yellow-100:focus { --tw-ring-color: var(--chip-bg) !important; }
+
+/* Keep the order screens' slate utilities within the brown palette. */
+.bg-slate-50 { background-color: var(--pale-bg) !important; }
+.bg-slate-100 { background-color: var(--chip-bg) !important; }
+.bg-slate-200 { background-color: var(--border-beige) !important; }
+.bg-slate-300 { background-color: var(--tan) !important; }
+.bg-slate-950 { background-color: #2a1b16 !important; }
+.text-slate-300 { color: var(--border-beige) !important; }
+.text-slate-400 { color: var(--accent-yellow) !important; }
+.text-slate-500 { color: var(--muted-brown, #8a6245) !important; }
+.text-slate-600 { color: var(--text-primary) !important; }
+.text-slate-700 { color: var(--deep-brown) !important; }
+.text-slate-800 { color: #522424 !important; }
+.text-slate-900, .text-slate-950 { color: #35231d !important; }
+.border-slate-50 { border-color: var(--pale-bg) !important; }
+.border-slate-100 { border-color: var(--pale-bg) !important; }
+.border-slate-200 { border-color: var(--border-beige) !important; }
+.border-slate-300 { border-color: var(--tan) !important; }
+.hover\:bg-slate-50:hover { background-color: var(--pale-bg) !important; }
+.hover\:bg-slate-100:hover { background-color: var(--chip-bg) !important; }
+.hover\:bg-slate-200:hover { background-color: var(--border-beige) !important; }
+.hover\:bg-slate-300:hover { background-color: var(--tan) !important; }
+.hover\:text-slate-600:hover { color: var(--text-primary) !important; }
+.hover\:text-slate-900:hover { color: var(--deep-brown) !important; }
+.hover\:border-slate-300:hover { border-color: var(--tan) !important; }
+.focus\:border-blue-500:focus, .focus\:border-blue-600:focus { border-color: var(--deep-brown) !important; }
+.focus\:ring-blue-100:focus, .focus\:ring-blue-200:focus { --tw-ring-color: var(--chip-bg) !important; }
+
+/* Gradient helpers (used inline for predictable results) */
+.bg-sales { background-color: var(--tan); color: white; }
+.bg-lowstock { background-color: var(--deep-brown); color: white; }
