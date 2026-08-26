@@ -21,6 +21,12 @@ interface Ingredient {
   unit: string;
   unit_price: number | null;
   quantity: number | null;
+  expiration_date?: string | null;
+  batches?: {
+    id: number;
+    remaining_quantity: number | null;
+    expiration_date: string | null;
+  }[];
 }
 
 interface AddOn {
@@ -73,6 +79,40 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
     if (unit === "L") return 3;
     if (unit === "kg") return 0.5;
     return 100;
+  };
+
+  const parseCalendarDate = (date: string) => {
+    const parsed = new Date(`${date.slice(0, 10)}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const formatCalendarDate = (date?: string | null) => {
+    if (!date) return "—";
+    const parsed = parseCalendarDate(date);
+    return parsed ? parsed.toLocaleDateString() : "—";
+  };
+
+  const isExpired = (expiration_date?: string | null) => {
+    if (!expiration_date) return false;
+    const today = new Date();
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+    const expirationKey = expiration_date.slice(0, 10);
+    return expirationKey <= todayKey;
+  };
+
+  const isNearExpiration = (expiration_date?: string | null) => {
+    if (!expiration_date) return false;
+    const expiration = parseCalendarDate(expiration_date);
+    if (!expiration) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffMillis = expiration.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffMillis / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 7;
   };
 
   const fetchIngredients = async () => {
@@ -267,6 +307,18 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
     return (Number(ing.quantity) || 0) < threshold;
   }).length;
 
+  const nearExpirationItems = ingredients.filter((ing) => {
+    if (!ing.expiration_date) return false;
+    const expiration = parseCalendarDate(ing.expiration_date);
+    if (!expiration) return false;
+    const today = new Date();
+    const diffMillis = expiration.getTime() - today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil(diffMillis / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 7;
+  });
+
+  const nearExpirationCount = nearExpirationItems.length;
+
   const totalInventoryValue = ingredients.reduce((sum, ing) => {
     const qty = Number(ing.quantity) || 0;
     const price = Number(ing.unit_price) || 0;
@@ -279,7 +331,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-slate-600 font-medium">Loading ingredients...</p>
@@ -305,13 +357,13 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
+    <div className="min-h-screen bg-[#f8f1e8] p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <div className={`${isShopTwo ? "bg-yellow-500" : "bg-blue-700"} p-2.5 rounded-lg`}>
+                <div className={`${isShopTwo ? "bg-yellow-500" : "bg-blue-700"} rounded-md p-2.5`}>
                   <span className="text-white text-xl inline-flex">
                     <FiPackage />
                   </span>
@@ -325,14 +377,14 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
               <button
                 onClick={handleCreateClick}
-                className={`${isShopTwo ? "bg-yellow-500 hover:bg-yellow-600 text-slate-900" : "bg-blue-700 hover:bg-blue-800 text-white"} px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm`}
+                className={`${isShopTwo ? "bg-yellow-500 hover:bg-yellow-600 text-slate-900" : "bg-blue-700 hover:bg-blue-800 text-white"} flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium transition-all`}
               >
                 <FiPlus size={18} />
                 Add Ingredient
               </button>
               <button
                 onClick={openAddOnModal}
-                className={`${isShopTwo ? "bg-yellow-500 hover:bg-yellow-600 text-slate-900" : "bg-blue-700 hover:bg-blue-800 text-white"} px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm`}
+                className={`${isShopTwo ? "bg-yellow-500 hover:bg-yellow-600 text-slate-900" : "bg-blue-700 hover:bg-blue-800 text-white"} flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium transition-all`}
               >
                 <FiPlus size={18} />
                 Add Add-On
@@ -342,7 +394,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="rounded-md border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <div className={`${isShopTwo ? "bg-yellow-100" : "bg-blue-50"} p-2.5 rounded-lg`}>
                 <span className={isShopTwo ? "text-yellow-700" : "text-blue-700"} style={{ display: "inline-flex" }}>
@@ -354,7 +406,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             <div className="text-2xl font-bold text-slate-900">{ingredients.length}</div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="rounded-md border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-green-50 p-2.5 rounded-lg">
                 <span className="text-green-600" style={{ display: "inline-flex" }}>
@@ -368,7 +420,24 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="rounded-md border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-orange-50 p-2.5 rounded-lg">
+                <span className="text-orange-600" style={{ display: "inline-flex" }}>
+                  <FiAlertCircle size={20} />
+                </span>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-slate-600 uppercase mb-1">Near Expiration</div>
+            <div className="text-2xl font-bold text-slate-900">{nearExpirationCount}</div>
+            <div className="mt-2 text-xs text-slate-500">
+              {nearExpirationCount > 0
+                ? `${nearExpirationCount} item${nearExpirationCount === 1 ? "" : "s"} expiring within 7 days`
+                : "No items near expiration"}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-red-50 p-2.5 rounded-lg">
                 <span className="text-red-600" style={{ display: "inline-flex" }}>
@@ -379,11 +448,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             <div className="text-xs font-semibold text-slate-600 uppercase mb-1">Low Stock Alert</div>
             <div className="text-2xl font-bold text-slate-900">{lowStockCount}</div>
           </div>
-
-          
         </div>
 
-        <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+        <div className="mb-4 rounded-md border border-slate-200 bg-white p-3">
           <div className="flex flex-col lg:flex-row gap-3">
             <div className="flex-1 relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 inline-flex">
@@ -394,7 +461,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                 placeholder="Search ingredients..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 ${isShopTwo ? "focus:border-yellow-500 focus:ring-yellow-100" : "focus:border-blue-700 focus:ring-blue-100"} transition-all outline-none text-sm`}
+                className={`w-full rounded-md border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 ${isShopTwo ? "focus:border-yellow-500 focus:ring-yellow-100" : "focus:border-blue-700 focus:ring-blue-100"}`}
               />
             </div>
 
@@ -402,7 +469,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
               <select
                 value={filterStock}
                 onChange={(e) => setFilterStock(e.target.value)}
-                className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 ${isShopTwo ? "focus:border-yellow-500 focus:ring-yellow-100" : "focus:border-blue-700 focus:ring-blue-100"} transition-all outline-none cursor-pointer text-sm bg-white`}
+                className={`w-full cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition-all focus:ring-2 ${isShopTwo ? "focus:border-yellow-500 focus:ring-yellow-100" : "focus:border-blue-700 focus:ring-blue-100"}`}
               >
                 <option value="all">All Stock</option>
                 <option value="low">Low Stock</option>
@@ -420,7 +487,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
         {lowStockCount > 0 && filterStock !== "low" && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3">
-              <span className="text-red-600 text-xl flex-shrink-0 inline-flex">
+              <span className="text-red-600 text-xl shrink-0 inline-flex">
                 <FiAlertCircle />
               </span>
               <div className="flex-1">
@@ -448,7 +515,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
               </div>
               <button
                 onClick={() => setFilterStock("low")}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0"
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shrink-0"
               >
                 View Items
               </button>
@@ -464,7 +531,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             </h2>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+          <div className="mb-4 rounded-md border border-slate-200 bg-white p-3">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 inline-flex">
                 <FiSearch size={18} />
@@ -503,7 +570,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden mb-4">
+              <div className="mb-4 overflow-hidden rounded-md border border-slate-200 bg-white">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -601,7 +668,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
@@ -609,6 +676,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Ingredient Name</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Quantity</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Unit</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Expiration</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Cost per Unit (₱)</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Total Value (₱)</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-slate-600 uppercase">Status</th>
@@ -644,6 +712,35 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                           <span className="text-slate-700 font-medium text-sm">{item.unit}</span>
                         </td>
                         <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {item.batches && item.batches.length > 0 ? (
+                              <div className="space-y-1">
+                                {item.batches.map((batch) => (
+                                  <div key={batch.id} className="text-sm">
+                                    <span className="font-semibold text-[#6c3030]">Batch #{batch.id}</span>
+                                    <span className="ml-2 text-slate-700">
+                                      {batch.expiration_date ? formatCalendarDate(batch.expiration_date) : "No expiry"}
+                                    </span>
+                                    <span className="ml-2 text-xs text-slate-500">
+                                      ({batch.remaining_quantity ?? 0} left)
+                                    </span>
+                                    {isExpired(batch.expiration_date) && Number(batch.remaining_quantity) > 0 && (
+                                      <span className="ml-2 text-xs text-red-600">Expired</span>
+                                    )}
+                                    {!isExpired(batch.expiration_date) && isNearExpiration(batch.expiration_date) && Number(batch.remaining_quantity) > 0 && (
+                                      <span className="ml-2 text-xs text-amber-700">Near expiry</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className={`text-slate-700 font-medium text-sm ${isExpired(item.expiration_date) || isNearExpiration(item.expiration_date) ? "text-red-600" : ""}`}>
+                                {item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : "—"}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
                           <div className="text-sm">
                             <span className="text-slate-700 font-medium block">
                               {item.unit_price !== null ? `₱${item.unit_price}` : "-"}
@@ -655,7 +752,12 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                           <span className="text-slate-700 font-bold text-sm">₱{itemValue}</span>
                         </td>
                         <td className="px-4 py-3">
-                          {isLowStock ? (
+                          {isExpired(item.expiration_date) ? (
+                            <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                              <FiAlertCircle size={12} />
+                              EXPIRED
+                            </span>
+                          ) : isLowStock ? (
                             <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full text-xs font-semibold">
                               <FiAlertCircle size={12} />
                               LOW STOCK
@@ -707,7 +809,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
 
       {deleteModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+          <div className="w-full max-w-md transform rounded-md bg-white p-6 shadow-2xl transition-all">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                 <span className="text-red-600" style={{ display: "inline-flex" }}>
@@ -741,8 +843,8 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
       )}
 
       {showAddOnModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-md transform overflow-y-auto rounded-md bg-white p-6 shadow-2xl transition-all">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-slate-900">Add New Add-On</h3>
               <button

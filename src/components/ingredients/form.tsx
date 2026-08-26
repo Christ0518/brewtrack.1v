@@ -11,6 +11,7 @@ interface Ingredient {
   unit: string;
   unit_price: number | null;
   quantity: number | null;
+  expiration_date?: string | null;
 }
 
 interface IngredientFormProps {
@@ -28,11 +29,19 @@ export default function IngredientForm({
   onSuccess,
   onCancel
 }: IngredientFormProps) {
+  const formatExpirationDate = (date?: string | null) => {
+    if (!date) return "";
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toISOString().split("T")[0];
+  };
+
   const [form, setForm] = useState({
     ingredient_name: ingredient?.ingredient_name || "",
     unit: ingredient?.unit || "",
     quantity: ingredient?.quantity?.toString() || "",
-    unit_price: ingredient?.unit_price?.toString() || ""
+    unit_price: ingredient?.unit_price?.toString() || "",
+    expiration_date: formatExpirationDate(ingredient?.expiration_date)
   });
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,11 +61,16 @@ export default function IngredientForm({
         throw new Error("Quantity is required");
       }
 
+      if (mode === "create" && !form.expiration_date) {
+        throw new Error("Expiration date is required for each ingredient batch");
+      }
+
       const payload = {
         ingredient_name: form.ingredient_name,
         unit: form.unit,
         quantity: Number(form.quantity),
-        unit_price: form.unit_price ? Number(form.unit_price) : undefined
+        unit_price: form.unit_price ? Number(form.unit_price) : undefined,
+        expiration_date: form.expiration_date ? form.expiration_date : null
       };
 
       console.log("DEBUG - Form payload:", payload);
@@ -118,9 +132,9 @@ export default function IngredientForm({
     return (
       <>
         <AlertModal />
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50">
-          <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Delete Ingredient</h2>
+        <div className="fixed inset-0 bg-transparent backdrop-blur-sm flex justify-center items-center p-4 z-50">
+          <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-[#d6c3af] p-6">
+          <h2 className="text-xl font-bold text-[#6c3030] mb-2">Delete Ingredient</h2>
           <p className="text-slate-600 mb-6">
             Are you sure you want to delete "{ingredient?.ingredient_name}"? This action cannot be undone.
           </p>
@@ -149,9 +163,9 @@ export default function IngredientForm({
   return (
     <>
       <AlertModal />
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50 overflow-y-auto">
-        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6 my-8">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">
+      <div className="fixed inset-0 bg-transparent backdrop-blur-sm flex justify-center items-center p-4 z-50 overflow-y-auto">
+        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-[#d6c3af] p-6 my-8">
+        <h2 className="text-xl font-bold text-[#6c3030] mb-4">
           {mode === "edit" ? "Edit Ingredient" : "Add Ingredient"}
         </h2>
 
@@ -171,7 +185,7 @@ export default function IngredientForm({
               value={form.ingredient_name}
               onChange={(e) => setForm({ ...form, ingredient_name: e.target.value })}
               placeholder="e.g., Ground Coffee"
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+              className="w-full px-3.5 py-2.5 border border-[#d6c3af] rounded-lg text-[#6c3030] bg-white focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
               required
               disabled={loading}
             />
@@ -184,7 +198,7 @@ export default function IngredientForm({
             <select
               value={form.unit}
               onChange={(e) => setForm({ ...form, unit: e.target.value })}
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none cursor-pointer"
+              className="w-full px-3.5 py-2.5 border border-[#d6c3af] rounded-lg text-[#6c3030] bg-white focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none cursor-pointer"
               required
               disabled={loading}
             >
@@ -207,7 +221,7 @@ export default function IngredientForm({
               value={form.quantity}
               onChange={(e) => setForm({ ...form, quantity: e.target.value })}
               placeholder="Current stock"
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+              className="w-full px-3.5 py-2.5 border border-[#d6c3af] rounded-lg text-[#6c3030] bg-white focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
               disabled={loading}
               required
             />
@@ -223,7 +237,21 @@ export default function IngredientForm({
               value={form.unit_price}
               onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
               placeholder="Cost per unit"
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+              className="w-full px-3.5 py-2.5 border border-[#d6c3af] rounded-lg text-[#6c3030] bg-white focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Expiration Date {mode === "create" && <span className="text-red-600">*</span>}
+            </label>
+            <input
+              type="date"
+              value={form.expiration_date}
+              onChange={(e) => setForm({ ...form, expiration_date: e.target.value })}
+              className="w-full px-3.5 py-2.5 border border-[#d6c3af] rounded-lg text-[#6c3030] bg-white focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
+              required={mode === "create"}
               disabled={loading}
             />
           </div>
@@ -239,7 +267,7 @@ export default function IngredientForm({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 bg-[#073dbe] hover:bg-[#052d99] text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 bg-[#6c3030] hover:bg-[#522424] text-white rounded-lg transition-colors font-medium disabled:opacity-50"
               disabled={loading}
             >
               {loading ? "Saving..." : mode === "edit" ? "Update" : "Add"} Ingredient

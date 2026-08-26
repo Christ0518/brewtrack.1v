@@ -14,25 +14,25 @@ interface ProductsPageProps {
 }
 
 const CATEGORY_COLORS: Record<number, string> = {
-  1: "bg-purple-600",
-  2: "bg-blue-600",
-  3: "bg-green-600",
-  4: "bg-orange-600",
-  5: "bg-pink-600",
+  1: "bg-[#6c3030]",
+  2: "bg-[#8a5a3b]",
+  3: "bg-[#9b7653]",
+  4: "bg-[#bc9b7a]",
+  5: "bg-[#754c35]",
 };
 
 export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
   const isShopTwo = shopId === "2";
   const accentButtonClass = isShopTwo
-    ? "bg-[#fec107] hover:bg-[#e3ad06] text-slate-900"
-    : "bg-blue-700 hover:bg-blue-800 text-white";
-  const accentBorderClass = isShopTwo ? "border-[#fec107]" : "border-blue-700";
-  const accentHoverBorderClass = isShopTwo ? "hover:border-[#fec107]" : "hover:border-blue-700";
+    ? "bg-[#bc9b7a] hover:bg-[#9b7653] text-white"
+    : "bg-[#6c3030] hover:bg-[#522424] text-white";
+  const accentBorderClass = isShopTwo ? "border-[#bc9b7a]" : "border-[#6c3030]";
+  const accentHoverBorderClass = isShopTwo ? "hover:border-[#bc9b7a]" : "hover:border-[#6c3030]";
   const accentFocusClass = isShopTwo
-    ? "focus:border-[#fec107] focus:ring-yellow-100"
-    : "focus:border-blue-700 focus:ring-blue-100";
-  const accentTextClass = isShopTwo ? "text-[#b98900]" : "text-blue-700";
-  const accentSoftBadgeClass = isShopTwo ? "bg-[#fff3bf] text-[#8a6700]" : "bg-blue-100 text-blue-700";
+    ? "focus:border-[#bc9b7a] focus:ring-[#f3e3cf]"
+    : "focus:border-[#6c3030] focus:ring-[#ead8c5]";
+  const accentTextClass = isShopTwo ? "text-[#8a6245]" : "text-[#6c3030]";
+  const accentSoftBadgeClass = isShopTwo ? "bg-[#f3e3cf] text-[#754c35]" : "bg-[#ead8c5] text-[#6c3030]";
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -186,7 +186,7 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
   };
 
   const getCategoryColor = (categoryId: any) =>
-    CATEGORY_COLORS[Number(categoryId)] || "bg-slate-600";
+    CATEGORY_COLORS[Number(categoryId)] || "bg-[#8a5a3b]";
 
   /* =========================
      FILTERING
@@ -270,30 +270,30 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
   return (
     <>
       <AlertModal />
-      <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
+      <div className="min-h-screen bg-[#f8f1e8] p-4 lg:p-6">
         <div className="max-w-7xl mx-auto">
 
           {/* Header */}
           <div className="mb-6">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
               <div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">
+                <h1 className="text-2xl lg:text-3xl font-bold text-[#6c3030]">
                   Product Management
                 </h1>
-                <p className="text-slate-600 mt-1 text-sm">
+                <p className="text-[#8a6245] mt-1 text-sm">
                   Manage your menu items and variants ({products.length} total)
                 </p>
               </div>
               <div className="flex gap-2 w-full lg:w-auto">
                 <button
                   onClick={() => setShowAddCategoryModal(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg transition-all font-medium text-sm"
+                  className="bg-[#9b7653] px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#754c35]"
                 >
                   Add Category
                 </button>
                 <button
                   onClick={handleCreateClick}
-                  className={`${accentButtonClass} px-5 py-2.5 rounded-lg transition-all font-medium text-sm`}
+                  className={`${accentButtonClass} px-5 py-2.5 text-sm font-medium transition-all`}
                 >
                   Add Product
                 </button>
@@ -302,21 +302,21 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
           </div>
 
           {/* Search */}
-          <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+          <div className="mb-4 border border-[#d6c3af] bg-white p-3">
             <input
               type="text"
               placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 ${accentFocusClass} transition-all outline-none text-sm`}
+              className={`w-full border border-slate-300 px-4 py-2 text-sm outline-none transition-all focus:ring-2 ${accentFocusClass}`}
             />
           </div>
 
           {/* Category Filter Tabs */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-700">Filter by Category</h3>
-              <span className="text-xs text-slate-600">
+              <h3 className="text-sm font-semibold text-[#6e5338]">Filter by Category</h3>
+              <span className="text-xs text-[#8a6245]">
                 <span className={`font-semibold ${accentTextClass}`}>{filteredProducts.length}</span> products
               </span>
             </div>
@@ -326,7 +326,7 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                 className={`px-4 py-2 rounded-lg border transition-all whitespace-nowrap flex items-center gap-2 shrink-0 text-sm font-medium ${
                   selectedCategory === "all"
                     ? `${accentButtonClass} ${accentBorderClass}`
-                    : `bg-white border-slate-200 ${accentHoverBorderClass} text-slate-700`
+                    : `bg-white border-[#d6c3af] ${accentHoverBorderClass} text-[#6e5338]`
                 }`}
               >
                 All
@@ -344,14 +344,14 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                   className={`px-4 py-2 rounded-lg border transition-all whitespace-nowrap flex items-center gap-2 shrink-0 text-sm font-medium ${
                     selectedCategory === category.id.toString()
                       ? `${getCategoryColor(category.id)} border-transparent text-white`
-                      : `bg-white border-slate-200 ${accentHoverBorderClass} text-slate-700`
+                      : `bg-white border-[#d6c3af] ${accentHoverBorderClass} text-[#6e5338]`
                   }`}
                 >
                   {category.name}
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     selectedCategory === category.id.toString()
                       ? "bg-white/20"
-                      : "bg-slate-100 text-slate-600"
+                      : "bg-[#f3e3cf] text-[#8a6245]"
                   }`}>
                     {products.filter((p) => Number(p.category_id) === Number(category.id)).length}
                   </span>
@@ -373,7 +373,7 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                     className={`ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs border transition-colors ${
                       selectedCategory === category.id.toString()
                         ? "border-white/40 text-white/90 hover:bg-white/20"
-                        : "border-slate-300 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                        : "border-[#d6c3af] text-[#8a6245] hover:bg-[#f3e3cf] hover:text-[#6c3030] hover:border-[#bc9b7a]"
                     }`}
                     title={`Delete ${category.name}`}
                   >
@@ -386,9 +386,9 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
 
           {/* Products Grid */}
           {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">No Products Found</h3>
-              <p className="text-slate-600 text-sm mb-6">
+              <div className="border border-[#d6c3af] bg-white p-12 text-center">
+              <h3 className="text-lg font-bold text-[#6c3030] mb-2">No Products Found</h3>
+              <p className="text-[#8a6245] text-sm mb-6">
                 {searchQuery ? "Try adjusting your search" : "Start by adding your first product"}
               </p>
               <button
@@ -404,13 +404,13 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                 <div key={category.id}>
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`${getCategoryColor(category.id)} w-1 h-6 rounded-full`} />
-                    <h2 className="text-xl font-bold text-slate-900">{category.name}</h2>
-                    <span className="text-sm text-slate-500">({categoryProducts.length})</span>
+                    <h2 className="text-xl font-bold text-[#6c3030]">{category.name}</h2>
+                    <span className="text-sm text-[#9b7653]">({categoryProducts.length})</span>
                   </div>
 
                   {categoryProducts.length === 0 ? (
-                    <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-                      <p className="text-slate-500 text-sm">No products in this category yet</p>
+                    <div className="bg-white rounded-lg border border-[#d6c3af] p-8 text-center">
+                      <p className="text-[#9b7653] text-sm">No products in this category yet</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -424,12 +424,12 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                         return (
                           <div
                             key={p.id}
-                            className={`bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition-all overflow-hidden flex flex-col ${
+                            className={`bg-white rounded-lg border border-[#d6c3af] hover:border-[#bc9b7a] transition-all overflow-hidden flex flex-col ${
                               isDeleting ? "opacity-50 pointer-events-none" : ""
                             }`}
                           >
                             {/* Image */}
-                            <div className="relative h-44 w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                            <div className="relative h-44 w-full bg-[#f3e3cf] flex items-center justify-center overflow-hidden">
                               {/* ✅ use p.image directly — it's already a Supabase URL */}
                               {p.image ? (
                                 <img
@@ -439,7 +439,7 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                                   onError={(e) => { e.currentTarget.style.display = "none"; }}
                                 />
                               ) : (
-                                <div className="text-slate-400 text-center p-4">
+                                <div className="text-[#bc9b7a] text-center p-4">
                                   <span className="text-xs">No image</span>
                                 </div>
                               )}
@@ -452,10 +452,10 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
 
                             {/* Content */}
                             <div className="p-4 flex-1 flex flex-col">
-                              <h2 className="text-base font-bold text-slate-900 mb-2 line-clamp-1">
+                              <h2 className="text-base font-bold text-[#6c3030] mb-2 line-clamp-1">
                                 {p.product_name}
                               </h2>
-                              <p className="text-sm text-slate-600 mb-3 line-clamp-2 flex-1">
+                              <p className="text-sm text-[#8a6245] mb-3 line-clamp-2 flex-1">
                                 {p.product_description || "No description available"}
                               </p>
 
@@ -463,23 +463,23 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                               {p.variants && p.variants.length > 0 && (
                                 <div className="mb-4 space-y-2">
                                   <h3 className="font-semibold text-xs text-slate-700 flex items-center gap-2">
-                                    <span className={`w-1 h-3 ${isShopTwo ? "bg-[#fec107]" : "bg-blue-700"} rounded`} />
+                                    <span className="w-1 h-3 bg-[#bc9b7a] rounded" />
                                     Variants ({p.variants.length})
                                   </h3>
                                   <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                                     {p.variants.map((v) => (
                                       <div
                                         key={v.id}
-                                        className="bg-slate-50 rounded-lg p-2.5 border border-slate-200"
+                                        className="bg-[#f8f1e8] rounded-lg p-2.5 border border-[#d6c3af]"
                                       >
                                         <div className="flex justify-between items-start">
-                                          <span className="font-medium text-slate-900 text-sm">{v.name}</span>
+                                          <span className="font-medium text-[#6c3030] text-sm">{v.name}</span>
                                           <div className="text-right">
                                             <div className={`${accentTextClass} font-bold text-sm`}>
                                               ₱{Number(v.price).toFixed(2)}
                                             </div>
                                             {v.calculated_cost ? (
-                                              <div className="text-xs text-slate-600 mt-0.5">
+                                              <div className="text-xs text-[#8a6245] mt-0.5">
                                                 Cost: ₱{Number(v.calculated_cost).toFixed(2)}
                                               </div>
                                             ) : null}
@@ -498,7 +498,7 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
                               )}
 
                               {/* Actions */}
-                              <div className="flex gap-2 mt-auto pt-3 border-t border-slate-200">
+                              <div className="flex gap-2 mt-auto pt-3 border-t border-[#d6c3af]">
                                 <button
                                   onClick={() => handleEditClick(p)}
                                   className={`flex-1 ${accentButtonClass} py-2 rounded-lg transition-all font-medium text-sm`}

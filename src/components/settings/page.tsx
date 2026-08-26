@@ -45,6 +45,11 @@ type ModalState = {
 	message: string;
 };
 
+type PendingAdminAction = {
+	type: "create-user" | "edit-user" | "delete-user" | "change-password" | "forgot-password";
+	executor: (adminPassword: string) => Promise<void> | void;
+};
+
 const SHOP_LABELS: Record<string, string> = {
 	"1": "Barcelo",
 	"2": "Good Coffee",
@@ -78,7 +83,7 @@ const defaultForgotPasswordState: ForgotPasswordState = {
 export default function SettingsPage() {
 	const router = useRouter();
 	const [shopId, setShopId] = useState("1");
-	const [shopColor, setShopColor] = useState("#073dbe");
+	const [shopColor, setShopColor] = useState("#6c3030");
 	const [users, setUsers] = useState<UserItem[]>([]);
 	const [form, setForm] = useState<UserFormState>(defaultFormState);
 	const [editingId, setEditingId] = useState<number | null>(null);
@@ -89,6 +94,8 @@ export default function SettingsPage() {
 	const [showForm, setShowForm] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
+	const [pendingAdminAction, setPendingAdminAction] = useState<PendingAdminAction | null>(null);
+	const [adminPasswordInput, setAdminPasswordInput] = useState("");
 	const [modal, setModal] = useState<ModalState>({
 		isOpen: false,
 		type: "info",
@@ -98,7 +105,7 @@ export default function SettingsPage() {
 
 	const theme = useMemo(() => getShopTheme(shopId), [shopId]);
 	const shopLabel = SHOP_LABELS[shopId] || "Barcelo";
-	const accentInputClass = `w-full px-3 py-2.5 border border-slate-300 rounded-lg ${theme.accentRingClass} transition-all outline-none text-sm`;
+	const accentInputClass = `w-full px-3 py-2.5 border border-[#d9c2ad] rounded-xl ${theme.accentRingClass} transition-all outline-none text-sm bg-[#fffdfb] text-[#35231d] placeholder:text-[#9b8278]`;
 
 	const showModal = (type: ModalState["type"], title: string, message: string) => {
 		setModal({ isOpen: true, type, title, message });
@@ -106,6 +113,32 @@ export default function SettingsPage() {
 
 	const closeModal = () => {
 		setModal((current) => ({ ...current, isOpen: false }));
+	};
+
+	const beginAdminConfirmation = (type: PendingAdminAction["type"], executor: PendingAdminAction["executor"]) => {
+		setPendingAdminAction({ type, executor });
+		setAdminPasswordInput("");
+	};
+
+	const cancelAdminConfirmation = () => {
+		setPendingAdminAction(null);
+		setAdminPasswordInput("");
+	};
+
+	const executePendingAction = async () => {
+		if (!pendingAdminAction) return;
+		if (!adminPasswordInput.trim()) {
+			showModal("warning", "Admin password required", "Please enter your admin password to continue.");
+			return;
+		}
+
+		setSubmitting(true);
+		try {
+			await pendingAdminAction.executor(adminPasswordInput.trim());
+		} finally {
+			cancelAdminConfirmation();
+			setSubmitting(false);
+		}
 	};
 
 	useEffect(() => {
@@ -178,8 +211,6 @@ export default function SettingsPage() {
 				return;
 			}
 
-			setSubmitting(true);
-
 			const method = editingId ? "PUT" : "POST";
 			const payload = editingId
 				? {
@@ -197,42 +228,41 @@ export default function SettingsPage() {
 						password: form.password,
 					};
 
-			const result = await Fetch_to(
-				api_links.tbl_users_manage,
-				payload,
-				{
-					"x-shop-id": shopId,
-					"Content-Type": "application/json",
-				},
-				1,
-				0,
-				method
-			);
+			beginAdminConfirmation(editingId ? "edit-user" : "create-user", async (adminPassword) => {
+				const result = await Fetch_to(
+					api_links.tbl_users_manage,
+					{ ...payload, admin_password: adminPassword },
+					{
+						"x-shop-id": shopId,
+						"Content-Type": "application/json",
+					},
+					1,
+					0,
+					method
+				);
 
-			if (!result.success) {
-				showModal("error", "Save Failed", result.message || "Error saving user.");
-				return;
-			}
+				if (!result.success) {
+					showModal("error", "Save Failed", result.message || "Error saving user.");
+					return;
+				}
 
-			showModal("success", "Saved", editingId ? "User updated successfully." : "User added successfully.");
-			cancelEdit();
-			await fetchUsers();
+				showModal("success", "Saved", editingId ? "User updated successfully." : "User added successfully.");
+				cancelEdit();
+				await fetchUsers();
+			});
 		} catch (error) {
 			console.error(error);
 			showModal("error", "Save Failed", error instanceof Error ? error.message : "Error saving user.");
-		} finally {
-			setSubmitting(false);
 		}
 	};
 
 	const handleDelete = async (id: number) => {
 		if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
 
-		try {
-			setSubmitting(true);
+		beginAdminConfirmation("delete-user", async (adminPassword) => {
 			const result = await Fetch_to(
 				`${api_links.tbl_users_manage}?id=${id}`,
-				{},
+				{ admin_password: adminPassword },
 				{
 					"x-shop-id": shopId,
 					"Content-Type": "application/json",
@@ -249,12 +279,7 @@ export default function SettingsPage() {
 
 			showModal("success", "Deleted", "User deleted successfully.");
 			await fetchUsers();
-		} catch (error) {
-			console.error(error);
-			showModal("error", "Delete Failed", error instanceof Error ? error.message : "Failed to delete user.");
-		} finally {
-			setSubmitting(false);
-		}
+		});
 	};
 
 	const handleChangePassword = async () => {
@@ -269,36 +294,36 @@ export default function SettingsPage() {
 				return;
 			}
 
-			setSubmitting(true);
-			const result = await Fetch_to(
-				api_links.tbl_users_manage,
-				{
-					id: passwordChange.id,
-					current_password: passwordChange.current_password,
-					new_password: passwordChange.new_password,
-					mode: "change",
-				},
-				{
-					"x-shop-id": shopId,
-					"Content-Type": "application/json",
-				},
-				1,
-				0,
-				"PATCH"
-			);
+			beginAdminConfirmation("change-password", async (adminPassword) => {
+				const result = await Fetch_to(
+					api_links.tbl_users_manage,
+					{
+						id: passwordChange.id,
+						current_password: passwordChange.current_password,
+						new_password: passwordChange.new_password,
+						mode: "change",
+						admin_password: adminPassword,
+					},
+					{
+						"x-shop-id": shopId,
+						"Content-Type": "application/json",
+					},
+					1,
+					0,
+					"PATCH"
+				);
 
-			if (!result.success) {
-				showModal("error", "Password Change Failed", result.message || "Failed to change password.");
-				return;
-			}
+				if (!result.success) {
+					showModal("error", "Password Change Failed", result.message || "Failed to change password.");
+					return;
+				}
 
-			showModal("success", "Password Updated", "Password changed successfully.");
-			closePasswordModal();
+				showModal("success", "Password Updated", "Password changed successfully.");
+				closePasswordModal();
+			});
 		} catch (error) {
 			console.error(error);
 			showModal("error", "Password Change Failed", error instanceof Error ? error.message : "Failed to change password.");
-		} finally {
-			setSubmitting(false);
 		}
 	};
 
@@ -320,35 +345,35 @@ export default function SettingsPage() {
 				return;
 			}
 
-			setSubmitting(true);
-			const result = await Fetch_to(
-				api_links.tbl_users_manage,
-				{
-					id: forgotPassword.id,
-					new_password: forgotPassword.new_password,
-					mode: "forgot",
-				},
-				{
-					"x-shop-id": shopId,
-					"Content-Type": "application/json",
-				},
-				1,
-				0,
-				"PATCH"
-			);
+			beginAdminConfirmation("forgot-password", async (adminPassword) => {
+				const result = await Fetch_to(
+					api_links.tbl_users_manage,
+					{
+						id: forgotPassword.id,
+						new_password: forgotPassword.new_password,
+						mode: "forgot",
+						admin_password: adminPassword,
+					},
+					{
+						"x-shop-id": shopId,
+						"Content-Type": "application/json",
+					},
+					1,
+					0,
+					"PATCH"
+				);
 
-			if (!result.success) {
-				showModal("error", "Reset Failed", result.message || "Failed to reset password.");
-				return;
-			}
+				if (!result.success) {
+					showModal("error", "Reset Failed", result.message || "Failed to reset password.");
+					return;
+				}
 
-			showModal("success", "Password Reset", "Forgot-password reset completed successfully.");
-			closeForgotPasswordModal();
+				showModal("success", "Password Reset", "Forgot-password reset completed successfully.");
+				closeForgotPasswordModal();
+			});
 		} catch (error) {
 			console.error(error);
 			showModal("error", "Reset Failed", error instanceof Error ? error.message : "Failed to reset password.");
-		} finally {
-			setSubmitting(false);
 		}
 	};
 
@@ -408,7 +433,7 @@ export default function SettingsPage() {
 	};
 
 	return (
-		<div className="flex h-screen bg-slate-50">
+		<div className="flex min-h-screen bg-[#f6f0eb]">
 			<Sidebar />
 
 			<div className="flex-1 overflow-auto p-4 lg:p-6">
@@ -416,20 +441,20 @@ export default function SettingsPage() {
 					<div className="mb-6">
 						<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 							<div>
-								<h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
-									<div className="p-2.5 rounded-lg" style={{ backgroundColor: shopColor }}>
+								<h1 className="text-2xl lg:text-3xl font-bold text-[#35231d] flex items-center gap-3 tracking-tight">
+									<div className="p-2.5 rounded-xl shadow-sm" style={{ backgroundColor: shopColor }}>
 										<span className={theme.accentTextColor === "#0f172a" ? "text-slate-900 text-xl inline-flex" : "text-white text-xl inline-flex"}>
 											<FiUser />
 										</span>
 									</div>
 									User Management
 								</h1>
-								<p className="text-slate-600 mt-1 text-sm">Manage your team members and their access for {shopLabel}</p>
+								<p className="text-[#6d534d] mt-1 text-sm">Manage your team members and their access for {shopLabel}</p>
 							</div>
 							{!showForm && (
 								<button
 									onClick={() => setShowForm(true)}
-									className="px-5 py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 font-medium text-sm"
+									className="px-5 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 font-semibold text-sm shadow-sm hover:shadow-md"
 									style={{ backgroundColor: shopColor, color: "white" }}
 									disabled={submitting}
 								>
@@ -441,9 +466,9 @@ export default function SettingsPage() {
 					</div>
 
 					{showForm && (
-						<div className="bg-white rounded-lg border border-slate-200 p-4 lg:p-6 mb-4">
+						<div className="bg-[#fffaf7] rounded-2xl border border-[#ead8ca] shadow-sm p-4 lg:p-6 mb-4">
 							<div className="flex items-center justify-between mb-4">
-								<h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+								<h3 className="text-lg font-bold text-[#35231d] flex items-center gap-2">
 									<span style={{ color: shopColor, display: "inline-flex" }}>
 										{editingId ? <FiEdit size={18} /> : <FiUserPlus size={18} />}
 									</span>
@@ -451,7 +476,7 @@ export default function SettingsPage() {
 								</h3>
 								<button
 									onClick={cancelEdit}
-									className="text-slate-600 hover:text-slate-800 p-2 hover:bg-slate-100 rounded-lg transition-all"
+									className="text-[#6d534d] hover:text-[#35231d] p-2 hover:bg-[#f6efe9] rounded-lg transition-all"
 								>
 									<FiX size={20} />
 								</button>
@@ -555,9 +580,9 @@ export default function SettingsPage() {
 						</div>
 					)}
 
-					<div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-						<div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-							<h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+					<div className="bg-[#fffaf7] rounded-2xl border border-[#ead8ca] overflow-hidden shadow-sm">
+						<div className="bg-[#f4eae1] px-4 py-3 border-b border-[#ead8ca]">
+							<h3 className="text-base font-bold text-[#35231d] flex items-center gap-2">
 								<FiUser size={16} />
 								All Users ({users.length})
 							</h3>
@@ -609,7 +634,7 @@ export default function SettingsPage() {
 													<div className="flex gap-2 justify-end">
 														<button
 															onClick={() => startEdit(user)}
-															className="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-lg transition-all"
+															className="bg-[#d9b57f] hover:bg-[#c89d5d] text-[#2d1d18] p-2 rounded-xl transition-all shadow-sm"
 															title="Edit user"
 															disabled={submitting}
 														>
@@ -617,7 +642,7 @@ export default function SettingsPage() {
 														</button>
 														<button
 															onClick={() => openPasswordModal(user.id)}
-															className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition-all"
+															className="bg-[#a56b4b] hover:bg-[#8c543e] text-white p-2 rounded-xl transition-all shadow-sm"
 															title="Change password"
 															disabled={submitting}
 														>
@@ -625,7 +650,7 @@ export default function SettingsPage() {
 														</button>
 														<button
 															onClick={() => openForgotPasswordModal(user)}
-															className="p-2 rounded-lg transition-all"
+															className="p-2 rounded-xl transition-all shadow-sm"
 															style={{ backgroundColor: shopColor, color: "white" }}
 															title="Forgot password reset"
 															disabled={submitting}
@@ -634,7 +659,7 @@ export default function SettingsPage() {
 														</button>
 														<button
 															onClick={() => handleDelete(user.id)}
-															className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition-all"
+															className="bg-[#b05151] hover:bg-[#8b3e3e] text-white p-2 rounded-xl transition-all shadow-sm"
 															title="Delete user"
 															disabled={submitting}
 														>
@@ -779,8 +804,66 @@ export default function SettingsPage() {
 						</div>
 					)}
 
+					{pendingAdminAction && (
+						<div className="fixed inset-0 z-70 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(15, 23, 42, 0.52)" }}>
+							<div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-[#e7d7c5]">
+								<div className="px-4 py-3 rounded-t-xl" style={{ backgroundColor: shopColor }}>
+									<div className="flex items-center justify-between">
+										<h3 className="text-lg font-bold flex items-center gap-2" style={{ color: theme.accentTextColor }}>
+											<FiLock size={18} />
+											Admin confirmation
+										</h3>
+										<button
+											onClick={cancelAdminConfirmation}
+											className="hover:bg-white/20 p-1.5 rounded-lg transition-all"
+											style={{ color: theme.accentTextColor }}
+										>
+											<FiX size={20} />
+										</button>
+									</div>
+								</div>
+
+								<div className="p-5 space-y-4">
+									<p className="text-sm text-slate-600">
+										This action requires the password of an admin account before it can be completed.
+									</p>
+									<label className="block text-sm font-medium text-slate-700 mb-2">
+										Admin Password <span className="text-red-600">*</span>
+									</label>
+									<input
+										type="password"
+										placeholder="Enter admin password"
+										className={accentInputClass}
+										value={adminPasswordInput}
+										onChange={(e) => setAdminPasswordInput(e.target.value)}
+										autoFocus
+									/>
+								</div>
+
+								<div className="flex gap-3 px-4 pb-4">
+									<button
+										onClick={cancelAdminConfirmation}
+										className="flex-1 px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-medium text-sm"
+										disabled={submitting}
+									>
+										Cancel
+									</button>
+									<button
+										onClick={executePendingAction}
+										className="flex-1 px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm disabled:bg-slate-400"
+										style={{ backgroundColor: shopColor, color: theme.accentTextColor }}
+										disabled={submitting}
+									>
+										<FiCheck size={16} />
+										Confirm
+									</button>
+								</div>
+							</div>
+						</div>
+					)}
+
 					{modal.isOpen && (
-						<div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
+						<div className="fixed inset-0 z-60 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
 							<div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
 								<h3 className="text-lg font-bold text-slate-900 mb-2">{modal.title}</h3>
 								<p className="text-slate-600 mb-5 text-sm">{modal.message}</p>

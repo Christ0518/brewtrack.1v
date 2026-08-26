@@ -5,13 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import {useRouter} from "next/navigation";
 import api_links from "@/config/fetch_links/api_links.json";
 import Sidebar from "@/components/sidebar";
+import { getShopTheme } from "@/lib/theme";
 
 
 export default function Dashboard() {
     const router = useRouter();
     const [shopName, setShopName] = useState("Shop");
     const [shopId, setShopId] = useState("1");
-    const [shopColor, setShopColor] = useState("#073dbe");
+    const [shopColor, setShopColor] = useState("#6c3030");
     const [orders, setOrders] = useState<any[]>([]);
     const [cashflow, setCashflow] = useState<any[]>([]);
     const [ingredients, setIngredients] = useState<any[]>([]);
@@ -33,7 +34,7 @@ export default function Dashboard() {
 
         if (storedShopName) setShopName(storedShopName);
         setShopId(storedShopId);
-        setShopColor(storedShopColor || (storedShopId === "2" ? "#fec107" : "#073dbe"));
+        setShopColor(storedShopId === "1" ? getShopTheme(storedShopId).accentColor : storedShopColor || getShopTheme(storedShopId).accentColor);
     }, []);
 
     useEffect(() => {
@@ -196,8 +197,14 @@ export default function Dashboard() {
         [ingredients]
     );
 
+    const [todayLabel, setTodayLabel] = useState("");
+
+    useEffect(() => {
+        setTodayLabel(new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
+    }, []);
+
     return (
-        <div className="flex h-screen bg-slate-50">
+        <div className="flex h-screen bg-cream">
             {/* Sidebar */}
             <Sidebar />
 
@@ -206,33 +213,33 @@ export default function Dashboard() {
                 <div className="p-6">
                     
 
-                    <div className="rounded-3xl border border-slate-200 bg-white p-6 mb-8 shadow-sm">
+                    <div className="rounded-3xl border border-beige bg-white p-6 mb-8 shadow-sm">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                             <div>
-                                <p className="text-sm uppercase tracking-[0.24em] text-slate-400 mb-2">Welcome back</p>
-                                <h2 className="text-3xl font-bold text-slate-900">Hello, {shopName} !</h2>
-                                <p className="mt-3 max-w-2xl text-slate-600">Here is your latest store overview with inventory health, top sales, and order performance.</p>
+                                <p className="text-sm uppercase tracking-[0.24em] text-primary mb-2">Welcome back</p>
+                                <h2 className="text-3xl font-bold text-primary">Hello, {shopName} !</h2>
+                                <p className="mt-3 max-w-2xl text-primary">Here is your latest store overview with inventory health, top sales, and order performance.</p>
                             </div>
-                            <div className="rounded-3xl bg-slate-50 p-4 text-slate-700">
-                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Today</p>
-                                <p className="mt-2 text-lg font-semibold">{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+                            <div className="rounded-3xl bg-cream p-4 text-primary">
+                                <p className="text-xs uppercase tracking-[0.24em] text-[#6e5338]">Today</p>
+                                <p className="mt-2 text-lg font-semibold">{todayLabel || "Loading..."}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Data Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-                        <div className="bg-linear-to-br from-green-500 to-green-600 text-white rounded-3xl p-5 shadow-lg">
-                            <p className="text-sm uppercase tracking-[0.2em] opacity-80">Revenue</p>
+                        <div className="rounded-3xl p-5 shadow-lg bg-sales">
+                            <p className="text-sm uppercase tracking-[0.2em] opacity-80">Sales</p>
                             <p className="mt-4 text-3xl font-black">{formatMoney(todayRevenue)}</p>
                             <p className="mt-3 text-xs opacity-80">Today</p>
                         </div>
-                        <div className="bg-linear-to-br from-sky-500 to-blue-600 text-white rounded-3xl p-5 shadow-lg">
+                        <div className="rounded-3xl p-5 shadow-lg bg-sales">
                             <p className="text-sm uppercase tracking-[0.2em] opacity-80">Completed Orders</p>
                             <p className="mt-4 text-3xl font-black">{todayCompletedOrdersCount}</p>
                             <p className="mt-3 text-xs opacity-80">Today</p>
                         </div>
-                        <div className="bg-linear-to-br from-rose-500 to-red-600 text-white rounded-3xl p-5 shadow-lg">
+                        <div className="rounded-3xl p-5 shadow-lg bg-lowstock">
                             <p className="text-sm uppercase tracking-[0.2em] opacity-80">Low Stock</p>
                             <p className="mt-4 text-3xl font-black">{lowStockCount}</p>
                             <p className="mt-3 text-xs opacity-80">Items ≤ 5 qty</p>
@@ -250,80 +257,133 @@ export default function Dashboard() {
                                     {formatMoney(weeklyTrend.reduce((sum, day) => sum + day.total, 0))}
                                 </span>
                             </div>
-                            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-sky-500" /> Revenue
+                            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-primary">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-tan" /> Revenue
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Orders
+                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Orders
                                 </span>
                             </div>
-                            <p className="mt-4 text-sm text-slate-500">Daily revenue and order volume for the past week. Taller bars mean higher sales and the count label shows orders per day. The value above is the total revenue for these seven days.</p>
-                            <div className="mt-4">
-                                <div className="grid h-40 grid-cols-7 gap-2 rounded-3xl bg-slate-50 p-4">
-                                    {weeklyTrend.map((day) => {
-                                        const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
-                                        const barHeight = Math.max(16, Math.round((day.total / maxTotal) * 120));
-                                        return (
-                                            <div key={day.label} className="flex h-full flex-col items-center gap-2">
-                                                <div className="flex h-full w-full items-end">
-                                                    <div className="w-full rounded-t-2xl bg-sky-500" style={{ height: `${barHeight}px` }} />
-                                                </div>
-                                                <div className="text-[10px] text-slate-500 text-center">
-                                                    <div>{day.label}</div>
-                                                    <div>{day.count} orders</div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                            <p className="mt-4 text-sm text-primary">Daily revenue and order volume for the past week. The line shows revenue changes over time and points show each day's sales.</p>
+                            <div className="mt-4 rounded-3xl bg-[#f8f1e8] p-4">
+                                <div className="relative h-40">
+                                    <svg viewBox="0 0 320 160" className="h-full w-full">
+                                        <defs>
+                                            <linearGradient id="trendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                <stop offset="0%" stopColor="#bc9b7a" stopOpacity="0.9" />
+                                                <stop offset="100%" stopColor="#bc9b7a" stopOpacity="0.1" />
+                                            </linearGradient>
+                                        </defs>
+                                        <path
+                                            d={(() => {
+                                                const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
+                                                const chartWidth = 320;
+                                                const chartHeight = 120;
+                                                const points = weeklyTrend.map((day, index) => {
+                                                    const x = index * (chartWidth / Math.max(weeklyTrend.length - 1, 1));
+                                                    const y = chartHeight - (day.total / maxTotal) * chartHeight + 20;
+                                                    return { x, y };
+                                                });
+                                                return points.reduce(
+                                                    (path, point, index) =>
+                                                        index === 0
+                                                            ? `M ${point.x} ${point.y}`
+                                                            : `${path} L ${point.x} ${point.y}`,
+                                                    ""
+                                                );
+                                            })()}
+                                            fill="none"
+                                            stroke="#6c3030"
+                                            strokeWidth="3"
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                        />
+                                        {weeklyTrend.map((day, index) => {
+                                            const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
+                                            const chartWidth = 320;
+                                            const chartHeight = 120;
+                                            const x = index * (chartWidth / Math.max(weeklyTrend.length - 1, 1));
+                                            const y = chartHeight - (day.total / maxTotal) * chartHeight + 20;
+                                            return (
+                                                <g key={day.label}>
+                                                    <circle cx={x} cy={y} r="4" fill="#6c3030" />
+                                                    <circle cx={x} cy={y} r="10" fill="transparent" />
+                                                </g>
+                                            );
+                                        })}
+                                        <path
+                                            d={(() => {
+                                                const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
+                                                const chartWidth = 320;
+                                                const chartHeight = 120;
+                                                const points = weeklyTrend.map((day, index) => {
+                                                    const x = index * (chartWidth / Math.max(weeklyTrend.length - 1, 1));
+                                                    const y = chartHeight - (day.total / maxTotal) * chartHeight + 20;
+                                                    return `${x},${y}`;
+                                                });
+                                                return `M0,160 L${points.join(" L ")} L320,160 Z`;
+                                            })()}
+                                            fill="url(#trendGradient)"
+                                            opacity="0.4"
+                                        />
+                                    </svg>
+                                </div>
+                                <div className="mt-4 grid grid-cols-7 gap-2 text-[10px] text-primary">
+                                    {weeklyTrend.map((day) => (
+                                        <div key={day.label} className="text-center">
+                                            <div>{day.label}</div>
+                                            <div>{day.count} orders</div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                        <div className="rounded-3xl border border-beige bg-white p-6 shadow-sm">
                             <div className="flex items-center justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-slate-900">Order status</h2>
-                                    <p className="text-sm text-slate-500">Current breakdown</p>
+                                    <h2 className="text-base font-semibold text-primary">Order status</h2>
+                                    <p className="text-sm text-primary">Current breakdown</p>
                                 </div>
-                                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">{orders.length} total</span>
+                                <span className="rounded-full chip-bg px-3 py-1 text-xs font-semibold text-primary">{orders.length} total</span>
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Pending / open
+                            <div className="mt-4 flex flex-wrap gap-2 text-xs text-primary">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-tan" /> Pending / open
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Preparing
+                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Preparing
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Completed
+                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-deep" /> Completed
                                 </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> Cancelled
+                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-deep" /> Cancelled
                                 </span>
                             </div>
-                            <p className="mt-4 text-sm text-slate-500">This chart shows where orders currently stand, from pending to preparing to completed and cancelled.</p>
+                            <p className="mt-4 text-sm text-primary">This chart shows where orders currently stand, from pending to preparing to completed and cancelled.</p>
                             <div className="mt-6 space-y-4">
                                 {Object.entries(statusCounts).map(([key, value]) => (
                                     <div key={key} className="space-y-2">
-                                        <div className="flex items-center justify-between text-sm text-slate-600"><span>{key.charAt(0).toUpperCase() + key.slice(1)}</span><span>{value}</span></div>
-                                        <div className="h-3 rounded-full bg-slate-100">
-                                            <div className={`h-3 rounded-full ${key === 'completed' ? 'bg-emerald-500' : key === 'cancelled' ? 'bg-rose-500' : key === 'preparing' ? 'bg-amber-500' : 'bg-blue-500'}`} style={{ width: `${orders.length ? (value / orders.length) * 100 : 0}%` }}></div>
+                                        <div className="flex items-center justify-between text-sm text-primary"><span>{key.charAt(0).toUpperCase() + key.slice(1)}</span><span>{value}</span></div>
+                                        <div className="h-3 rounded-full bg-pale">
+                                            <div className={`h-3 rounded-full ${key === 'completed' ? 'bg-deep' : key === 'cancelled' ? 'bg-deep' : key === 'preparing' ? 'bg-primary' : 'bg-tan'}`} style={{ width: `${orders.length ? (value / orders.length) * 100 : 0}%` }}></div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                        <div className="rounded-3xl border border-beige bg-white p-6 shadow-sm">
                             <div className="flex items-center justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-slate-900">Top Sales</h2>
-                                    <p className="text-sm text-slate-500">Best-selling products</p>
+                                    <h2 className="text-base font-semibold text-primary">Top Sales</h2>
+                                    <p className="text-sm text-primary">Best-selling products</p>
                                 </div>
-                                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">{topSellingProducts.length} items</span>
+                                <span className="rounded-full chip-bg px-3 py-1 text-xs font-semibold text-primary">{topSellingProducts.length} items</span>
                             </div>
-                            <div className="mt-6 space-y-4 text-sm text-slate-600">
+                            <div className="mt-6 space-y-4 text-sm text-[#6e5338]">
                                 {topSellingProducts.length > 0 ? (
                                     topSellingProducts.map((item) => (
                                         <div key={`${item.product}-${item.variant}`} className="flex items-center justify-between gap-4">
@@ -343,19 +403,19 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="rounded-3xl border border-beige bg-white p-6 shadow-sm">
                             <div className="flex items-center justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-slate-900">Inventory health</h2>
-                                    <p className="text-sm text-slate-500">Low stock items</p>
+                                    <h2 className="text-base font-semibold text-primary">Inventory health</h2>
+                                    <p className="text-sm text-primary">Low stock items</p>
                                 </div>
-                                <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">{lowStockCount} low</span>
+                                <span className="rounded-full chip-bg px-3 py-1 text-xs font-semibold text-primary">{lowStockCount} low</span>
                             </div>
-                            <div className="mt-6 space-y-4 text-sm text-slate-600">
+                            <div className="mt-6 space-y-4 text-sm text-[#6e5338]">
                                 {topLowStockItems.map((item) => (
                                     <div key={item.id}>
                                         <div className="flex justify-between mb-2"><span>{item.ingredient_name || item.name || "Item"}</span><span>{Number(item.quantity || 0)}</span></div>
-                                        <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-rose-500" style={{ width: `${Math.min(100, (Number(item.quantity || 0) / 10) * 100)}%` }}></div></div>
+                                        <div className="h-3 rounded-full bg-pale"><div className="h-3 rounded-full bg-deep" style={{ width: `${Math.min(100, (Number(item.quantity || 0) / 10) * 100)}%` }}></div></div>
                                     </div>
                                 ))}
                             </div>

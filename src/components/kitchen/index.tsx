@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
+import { supabaseClient } from "@/lib/supabase-client";
 
 interface Order {
   id: number;
@@ -13,8 +14,10 @@ interface Order {
     quantity: number;
     variant: string;
   }>;
-  status: "pending" | "preparing" | "completed";
+  status: "pending" | "awaiting_acceptance" | "preparing" | "completed";
   created_at: string;
+  cashier_id?: string | number | null;
+  accepted_at?: string;
   special_notes?: string;
   customer_name?: string;
 }
@@ -24,19 +27,29 @@ export default function KitchenDisplay() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
+  const [shopName, setShopName] = useState("Shop");
 
   const buildOrderNumber = (id: number) => `ORD-${String(id).padStart(3, "0")}`;
 
-  const getOrderTimestamp = (createdAt: string) => {
-const t = new Date(createdAt).getTime();
-return Number.isNaN(t) ? 0 : t;
-};
+  const getOrderTimestamp = (acceptedAt: string | undefined, createdAt: string, cashierId?: string | number | null) => {
+    const queueTime = acceptedAt || (cashierId ? createdAt : undefined);
+    if (!queueTime) return Number.POSITIVE_INFINITY;
 
-const sortByQueueOrder = (a: Order, b: Order) => {
-const timeDiff = getOrderTimestamp(a.created_at) - getOrderTimestamp(b.created_at);
-if (timeDiff !== 0) return timeDiff;
-return a.id - b.id;
-};
+    const timestamp = new Date(queueTime).getTime();
+    return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+  };
+
+  const sortByQueueOrder = (a: Order, b: Order) => {
+    const aTimestamp = getOrderTimestamp(a.accepted_at, a.created_at, a.cashier_id);
+    const bTimestamp = getOrderTimestamp(b.accepted_at, b.created_at, b.cashier_id);
+
+    if (!Number.isFinite(aTimestamp)) return Number.isFinite(bTimestamp) ? 1 : a.id - b.id;
+    if (!Number.isFinite(bTimestamp)) return -1;
+
+    const timeDiff = bTimestamp - aTimestamp;
+    if (timeDiff !== 0) return timeDiff;
+    return a.id - b.id;
+  };
 
   const loadOrders = async () => {
     const storedShopId = localStorage.getItem("shopId") || "1";
@@ -54,21 +67,28 @@ return a.id - b.id;
     }
 
     const data = await response.json();
-    const normalizedOrders: Order[] = (Array.isArray(data) ? data : []).map((order: any) => ({
-      id: Number(order.id),
-      order_number: order.order_number || buildOrderNumber(Number(order.id)),
-      items: Array.isArray(order.items)
-        ? order.items.map((item: any) => ({
-            product_name: item.product_name || "Unknown item",
-            quantity: Number(item.quantity) || 0,
-            variant: item.variant_name || item.variant || "Default",
-          }))
-        : [],
-      status: order.status,
-      created_at: order.created_at,
-      special_notes: order.notes || order.special_notes || undefined,
-      customer_name: order.customer_name || undefined,
-    }));
+    const normalizedOrders: Order[] = (Array.isArray(data) ? data : [])
+      .filter((order: any) => {
+        const status = String(order.status || "").toLowerCase();
+        return status === "preparing" || status === "completed";
+      })
+      .map((order: any) => ({
+        id: Number(order.id),
+        cashier_id: order.cashier_id,
+        order_number: order.order_number || buildOrderNumber(Number(order.id)),
+        items: Array.isArray(order.items)
+          ? order.items.map((item: any) => ({
+              product_name: item.product_name || "Unknown item",
+              quantity: Number(item.quantity) || 0,
+              variant: item.variant_name || item.variant || "Default",
+            }))
+          : [],
+        status: String(order.status || "preparing").toLowerCase() as Order["status"],
+        created_at: order.created_at,
+        accepted_at: order.accepted_at || undefined,
+        special_notes: order.notes || order.special_notes || undefined,
+        customer_name: order.customer_name || undefined,
+      }));
 
     setOrders([...normalizedOrders].sort(sortByQueueOrder));
   };
@@ -88,7 +108,10 @@ return a.id - b.id;
   // Check user role on mount
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
+    const storedShopName = localStorage.getItem("shopName");
     console.log("DEBUG KITCHEN - storedUser:", storedUser);
+
+    if (storedShopName) setShopName(storedShopName);
     
     if (!storedUser || storedUser === "undefined") {
       console.log("DEBUG KITCHEN - No user or undefined, redirecting to /");
@@ -114,6 +137,8 @@ return a.id - b.id;
       return;
     }
 
+    const storedShopId = localStorage.getItem("shopId") || "1";
+
     const initializeOrders = async () => {
       try {
         await loadOrders();
@@ -126,14 +151,45 @@ return a.id - b.id;
     };
 
     initializeOrders();
+    let fallbackRefreshInterval: ReturnType<typeof setInterval> | undefined;
 
-    const refreshInterval = setInterval(() => {
-      loadOrders().catch((error) => {
-        console.error("Failed to refresh kitchen orders:", error);
+    const startFallbackRefresh = () => {
+      if (fallbackRefreshInterval) return;
+
+      fallbackRefreshInterval = setInterval(() => {
+        loadOrders().catch((error) => {
+          console.error("Failed to refresh kitchen orders:", error);
+        });
+      }, 5000);
+    };
+
+    const ordersChannel = supabaseClient
+      .channel(`kitchen-orders-${storedShopId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tbl_orders",
+          filter: `shop_id=eq.${storedShopId}`,
+        },
+        () => {
+          loadOrders().catch((error) => {
+            console.error("Failed to refresh kitchen orders:", error);
+          });
+        }
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("Kitchen orders realtime unavailable; using 5-second refresh:", status);
+          startFallbackRefresh();
+        }
       });
-    }, 5000);
 
-    return () => clearInterval(refreshInterval);
+    return () => {
+      if (fallbackRefreshInterval) clearInterval(fallbackRefreshInterval);
+      void supabaseClient.removeChannel(ordersChannel);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -141,7 +197,7 @@ return a.id - b.id;
     return () => clearInterval(timer);
   }, []);
 
-  const handleStatusChange = async (orderId: number, newStatus: "pending" | "preparing" | "completed") => {
+  const handleStatusChange = async (orderId: number, newStatus: "pending" | "awaiting_acceptance" | "preparing" | "completed") => {
     try {
       const response = await fetch(api_links.tbl_orders, {
         method: "PATCH",
@@ -197,297 +253,133 @@ return a.id - b.id;
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-red-50 border-red-200";
-      case "preparing":
-        return "bg-yellow-50 border-yellow-200";
-      case "completed":
-        return "bg-green-50 border-green-200";
-      default:
-        return "bg-slate-50 border-slate-200";
-    }
-  };
-
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-red-100 text-red-700";
-      case "preparing":
-        return "bg-yellow-100 text-yellow-700";
-      case "completed":
-        return "bg-green-100 text-green-700";
-      default:
-        return "bg-slate-100 text-slate-700";
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f4f6f8] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#073dbe] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-700 font-medium">Loading kitchen display...</p>
+          <div className="w-12 h-12 border-4 border-[#073dbe] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-700 font-medium">Loading kitchen...</p>
         </div>
       </div>
     );
   }
 
-  const pendingOrders = orders.filter((o) => o.status === "pending");
-  const preparingOrders = orders.filter((o) => o.status === "preparing");
-  const completedOrders = orders.filter((o) => o.status === "completed");
+  const preparingOrders = orders
+    .filter((o) => o.status === "preparing")
+    .sort(sortByQueueOrder)
+    .slice(0, 10);
+  const completedOrders = orders
+    .filter((o) => o.status === "completed")
+    .sort(sortByQueueOrder);
+  const recentCompletedOrders = completedOrders.slice(0, 8);
 
   return (
-    <div className="min-h-screen bg-white p-4 lg:p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl lg:text-4xl font-bold text-slate-900">
-                Kitchen Display System
-              </h1>
-              <p className="text-slate-600 mt-2">
-                {orders.length} total orders • {pendingOrders.length} pending • {preparingOrders.length} preparing
-              </p>
-            </div>
+    <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
+      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#073dbe]">{shopName} Kitchen</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Kitchen</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {preparingOrders.length === 0 ? "Nothing is waiting right now" : `${preparingOrders.length} ${preparingOrders.length === 1 ? "order" : "orders"} in progress`}
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-5 sm:justify-end">
             <div className="text-right">
-              <p className="text-slate-600 text-sm mb-3">
-                {now.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
+              <p className="text-xl font-bold tabular-nums text-slate-900">
+                {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded transition-colors text-sm"
-              >
-                Logout
-              </button>
+              <p className="text-xs text-slate-500">{getCurrentDateTime().split(",")[0]}</p>
             </div>
+            <button
+              onClick={handleLogout}
+              className="border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50"
+            >
+              Log out
+            </button>
           </div>
-        </div>
+        </header>
 
-        {/* Orders Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Pending Orders */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-              <h2 className="text-xl font-bold text-slate-900">
-                Pending ({pendingOrders.length})
-              </h2>
+        <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.75fr)]">
+          <section aria-labelledby="preparing-heading">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#f2b705]" />
+                <h2 id="preparing-heading" className="text-lg font-bold">Preparing now</h2>
+              </div>
+              <span className="text-sm font-semibold text-slate-400">Newest accepted first</span>
             </div>
-            <div className="space-y-3">
-              {pendingOrders.length > 0 ? (
-                pendingOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className={`border-2 rounded-lg p-4 ${getStatusColor(order.status)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          {order.order_number}
-                        </h3>
-                        <p className="text-xs text-slate-600 mt-1">
-                          {getTimeElapsed(order.created_at)} ago
-                        </p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusBadgeColor(order.status)}`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+
+            <div className="overflow-hidden border border-slate-200 bg-white shadow-sm">
+              {preparingOrders.length > 0 ? preparingOrders.map((order, orderIndex) => (
+                <article key={order.id} className={`p-4 sm:p-5 ${orderIndex > 0 ? "border-t border-slate-200" : ""}`}>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 gap-4">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-[#073dbe] text-sm font-black text-white">
+                        {orderIndex + 1}
                       </span>
-                    </div>
-
-                    <div className="space-y-2 mb-4 bg-white rounded p-2">
-                      <div className="pb-2 border-b border-slate-200">
-                        <p className="text-xs text-slate-600">
-                          <span className="font-semibold text-slate-700">Name:</span> {order.customer_name || "Walk-in"}
-                        </p>
-                        <p className="text-xs text-slate-600 mt-1">
-                          <span className="font-semibold text-slate-700">Current:</span> {getCurrentDateTime()}
-                        </p>
-                      </div>
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-slate-900">
-                              {item.product_name}
-                            </p>
-                            <p className="text-xs text-slate-600">
-                              {item.variant}
-                            </p>
-                          </div>
-                          <span className="font-bold text-slate-900">
-                            ×{item.quantity}
-                          </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <h3 className="text-xl font-black text-slate-950">{order.order_number}</h3>
+                          <span className="text-sm text-slate-500">{order.customer_name || "Walk-in"}</span>
                         </div>
-                      ))}
-                    </div>
-
-                    {order.special_notes && (
-                      <div className="mb-3 p-2 bg-white rounded border-l-4 border-orange-500">
-                        <p className="text-xs font-semibold text-slate-700">
-                          Notes:
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+                          Accepted {getTimeElapsed(order.accepted_at || order.created_at)} ago
                         </p>
-                        <p className="text-sm text-slate-600">
-                          {order.special_notes}
-                        </p>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => handleStatusChange(order.id, "preparing")}
-                      className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 rounded transition-colors"
-                    >
-                      Start Preparing
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  No pending orders
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Preparing Orders */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
-              <h2 className="text-xl font-bold text-slate-900">
-                Preparing ({preparingOrders.length})
-              </h2>
-            </div>
-            <div className="space-y-3">
-              {preparingOrders.length > 0 ? (
-                preparingOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className={`border-2 rounded-lg p-4 ${getStatusColor(order.status)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          {order.order_number}
-                        </h3>
-                        <p className="text-xs text-slate-600 mt-1">
-                          {getTimeElapsed(order.created_at)} ago
-                        </p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusBadgeColor(order.status)}`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 mb-4 bg-white rounded p-2">
-                      <div className="pb-2 border-b border-slate-200">
-                        <p className="text-xs text-slate-600">
-                          <span className="font-semibold text-slate-700">Name:</span> {order.customer_name || "Walk-in"}
-                        </p>
-                        <p className="text-xs text-slate-600 mt-1">
-                          <span className="font-semibold text-slate-700">Current:</span> {getCurrentDateTime()}
-                        </p>
-                      </div>
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-slate-900">
-                              {item.product_name}
-                            </p>
-                            <p className="text-xs text-slate-600">
-                              {item.variant}
-                            </p>
-                          </div>
-                          <span className="font-bold text-slate-900">
-                            ×{item.quantity}
-                          </span>
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700">
+                          {order.items.map((item, itemIndex) => (
+                            <span key={`${order.id}-${itemIndex}`}>
+                              <strong className="text-slate-950">{item.quantity}x</strong> {item.product_name}{item.variant !== "Default" ? ` · ${item.variant}` : ""}
+                            </span>
+                          ))}
                         </div>
-                      ))}
+                        {order.special_notes && <p className="mt-3 border-l-2 border-[#f2b705] pl-3 text-sm text-slate-600">{order.special_notes}</p>}
+                      </div>
                     </div>
-
                     <button
                       onClick={() => handleStatusChange(order.id, "completed")}
-                      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded transition-colors"
+                      className="shrink-0 bg-[#16834b] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#116b3d] sm:mt-1"
                     >
-                      Done
+                      Mark done
                     </button>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  No orders being prepared
+                </article>
+              )) : (
+                <div className="px-6 py-16 text-center">
+                  <p className="font-semibold text-slate-700">Queue is clear</p>
+                  <p className="mt-1 text-sm text-slate-500">Accepted orders will appear here automatically.</p>
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Completed Orders */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <h2 className="text-xl font-bold text-slate-900">
-                Completed ({completedOrders.length})
-              </h2>
+          <section aria-labelledby="completed-heading">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#16834b]" />
+                <h2 id="completed-heading" className="text-lg font-bold">Recently done</h2>
+              </div>
+              <span className="text-sm font-semibold text-slate-400">{completedOrders.length} total</span>
             </div>
-            <div className="space-y-3">
-              {completedOrders.length > 0 ? (
-                completedOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className={`border-2 rounded-lg p-4 ${getStatusColor(order.status)} opacity-75`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="text-xl font-bold text-slate-900">
-                          {order.order_number}
-                        </h3>
-                        <p className="text-xs text-slate-600 mt-1">
-                          Ready for pickup
-                        </p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusBadgeColor(order.status)}`}>
-                        ✓ Done
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 bg-white rounded p-2">
-                      <div className="pb-2 border-b border-slate-200">
-                        <p className="text-xs text-slate-600">
-                          <span className="font-semibold text-slate-700">Name:</span> {order.customer_name || "Walk-in"}
-                        </p>
-                        
-                      </div>
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold text-slate-900">
-                              {item.product_name}
-                            </p>
-                            <p className="text-xs text-slate-600">
-                              {item.variant}
-                            </p>
-                          </div>
-                          <span className="font-bold text-slate-900">
-                            ×{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+            <div className="border border-slate-200 bg-white shadow-sm">
+              {recentCompletedOrders.length > 0 ? recentCompletedOrders.map((order, orderIndex) => (
+                <div key={order.id} className={`flex items-center justify-between gap-3 px-4 py-3 ${orderIndex > 0 ? "border-t border-slate-100" : ""}`}>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-800">{order.order_number}</p>
+                    <p className="truncate text-xs text-slate-500">{order.customer_name || "Walk-in"}</p>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  No completed orders
+                  <span className="shrink-0 text-xs font-semibold text-[#16834b]">Ready</span>
                 </div>
+              )) : (
+                <p className="px-4 py-8 text-center text-sm text-slate-500">No completed orders yet.</p>
               )}
             </div>
-          </div>
+            {completedOrders.length > recentCompletedOrders.length && (
+              <p className="mt-3 text-center text-xs text-slate-400">Showing the latest {recentCompletedOrders.length} completed orders</p>
+            )}
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

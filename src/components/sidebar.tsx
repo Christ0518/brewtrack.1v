@@ -13,8 +13,10 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [shopName, setShopName] = useState("Shop");
-  const [shopColor, setShopColor] = useState("#073dbe");
+  const [shopLogo, setShopLogo] = useState("");
+  const [shopColor, setShopColor] = useState("#6c3030");
   const [user, setUser] = useState<{
+    name?: string;
     first_name?: string;
     last_name?: string;
     role?: string;
@@ -22,16 +24,20 @@ export default function Sidebar() {
 
   useEffect(() => {
     const storedShop = localStorage.getItem("shopName");
+    const storedLogo = localStorage.getItem("shopLogo");
     const storedShopId = localStorage.getItem("shopId");
     const storedColor = localStorage.getItem("shopColor");
     const storedUser = localStorage.getItem("user");
     const theme = getShopTheme(storedShopId || "1");
 
     if (storedShop) setShopName(storedShop);
-    setShopColor(storedColor || theme.accentColor);
+    if (storedLogo) setShopLogo(storedLogo);
+    setShopColor(storedShopId === "1" ? theme.accentColor : storedColor || theme.accentColor);
     if (storedUser && storedUser !== "undefined") {
       try {
-        setUser(JSON.parse(storedUser));
+        const storedUserData = JSON.parse(storedUser);
+        const role = storedUserData.role ?? storedUserData.user_role ?? storedUserData.userRole;
+        setUser({ ...storedUserData, role: typeof role === "string" ? role.trim().toLowerCase() : undefined });
       } catch (error) {
         console.error("Failed to parse user data in sidebar:", error);
       }
@@ -52,6 +58,7 @@ export default function Sidebar() {
       await Fetch_to(api_links.jwt.deauth);
       localStorage.removeItem("shopId");
       localStorage.removeItem("shopName");
+      localStorage.removeItem("shopLogo");
       localStorage.removeItem("shopColor");
       localStorage.removeItem("user");
       router.push("/");
@@ -66,7 +73,7 @@ export default function Sidebar() {
       {/* Mobile Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -77,38 +84,39 @@ export default function Sidebar() {
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         } fixed top-0 left-0 h-screen ${
           isOpen ? "w-64" : "w-0 lg:w-20"
-        } bg-white border-r border-slate-200 flex flex-col transition-all duration-300 shadow-lg z-50 lg:z-30`}
+        } flex flex-col border-r border-beige bg-cream shadow-lg transition-all duration-300 z-50 lg:z-30`}
       >
         {/* Logo Section - Clickable to toggle */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center justify-center p-4 border-b border-slate-200 min-h-16 shrink-0 hover:bg-slate-50 transition-colors cursor-pointer"
+          className="flex min-h-16 shrink-0 cursor-pointer items-center justify-center border-b border-beige p-4 transition-colors hover:bg-pale"
           aria-label="Toggle sidebar"
         >
           {isOpen ? (
-            <div className="text-2xl font-bold" style={{ color: shopColor }}>
-              {shopName}
+            <div className="flex items-center gap-3 text-2xl font-bold" style={{ color: shopColor }}>
+              {shopLogo && <img src={shopLogo} alt={`${shopName} logo`} className="h-10 w-10 rounded-md object-cover" />}
+              <span className="truncate">{shopName}</span>
             </div>
           ) : (
-            <div className="text-lg font-bold text-center" style={{ color: shopColor }}>
-              {shopName?.split(' ').map((w) => w[0]).join('') || 'S'}
+            <div className="flex items-center justify-center text-center text-lg font-bold" style={{ color: shopColor }}>
+              {shopLogo ? <img src={shopLogo} alt={`${shopName} logo`} className="h-9 w-9 rounded-md object-cover" /> : shopName?.split(' ').map((w) => w[0]).join('') || 'S'}
             </div>
           )}
         </button>
 
         {/* User Info (when expanded) */}
         {isOpen && user && (
-          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+          <div className="shrink-0 border-b border-beige bg-pale px-4 py-3">
             <div className="flex items-center gap-3">
               <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
                 style={{ backgroundColor: shopColor }}
               >
-                {user.first_name?.[0]}{user.last_name?.[0]}
+                {(user.first_name || user.name || "U")[0]}{user.last_name?.[0] || ""}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-slate-900 truncate">
-                  {user.first_name} {user.last_name}
+                  {[user.first_name, user.last_name].filter(Boolean).join(" ") || user.name || "User"}
                 </div>
                 <div className="text-xs text-slate-600 capitalize">{user.role}</div>
               </div>
@@ -129,14 +137,14 @@ export default function Sidebar() {
                     setIsOpen(false);
                   }
                 }}
-                className={`flex items-center gap-3 py-2.5 px-3 rounded-lg transition-all group relative
+                className={`group relative flex items-center gap-3 rounded-md px-3 py-2.5 transition-all
                 ${
                   isActive
                     ? "text-white"
-                    : "text-slate-700 hover:bg-slate-100"
+                    : "text-primary hover:bg-tan hover:text-white"
                 }
                 ${!isOpen ? "justify-center lg:px-3" : ""}`}
-                style={isActive ? { backgroundColor: shopColor } : {}}
+                style={isActive ? { backgroundColor: "var(--text-primary)" } : {}}
                 title={!isOpen ? item.name : ""}
               >
                 <span className={`text-lg shrink-0`}>
@@ -153,7 +161,7 @@ export default function Sidebar() {
 
                 {/* Tooltip for collapsed state */}
                 {!isOpen && (
-                  <div className="absolute left-full ml-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap shadow-lg z-50">
+                  <div className="invisible absolute left-full z-50 ml-2 whitespace-nowrap rounded-md bg-deep text-xs text-white opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100">
                     {item.name}
                     <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
                   </div>
@@ -164,11 +172,11 @@ export default function Sidebar() {
         </nav>
 
         {/* Bottom Section */}
-        <div className="shrink-0 border-t border-slate-200">
+        <div className="shrink-0 border-t border-beige">
           {/* Logout Button */}
           <button
             onClick={() => setShowLogoutModal(true)}
-            className={`flex items-center gap-3 m-3 p-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all hover:shadow-md group w-[calc(100%-1.5rem)]
+            className={`group m-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-md bg-red-50 p-2.5 text-red-600 transition-all hover:bg-red-600 hover:text-white hover:shadow-md
             ${!isOpen ? "justify-center" : ""}`}
             title={!isOpen ? "Logout" : ""}
           >
@@ -187,7 +195,7 @@ export default function Sidebar() {
           {/* Copyright */}
           {isOpen && (
             <div className="px-4 pb-3 text-center">
-              <p className="text-xs text-slate-500">© 2025 {shopName}</p>
+              <p className="text-xs text-primary/70">© 2025 {shopName}</p>
             </div>
           )}
         </div>
@@ -206,7 +214,7 @@ export default function Sidebar() {
           className="fixed inset-0 z-60 flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+          <div className="w-full max-w-md transform rounded-md bg-cream p-6 shadow-2xl transition-all">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-lg">
                 ⚠️

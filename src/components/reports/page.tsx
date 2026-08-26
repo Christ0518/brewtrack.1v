@@ -12,6 +12,7 @@ import {
   FiCheckCircle,
   FiDownload,
   FiPrinter,
+  FiSearch,
   FiShoppingCart,
   FiTrendingUp,
 } from "react-icons/fi";
@@ -31,6 +32,7 @@ type OrderItem = {
 type Order = {
   id: number;
   created_at: string;
+  last_edited_at?: string | null;
   total: number;
   customer_name?: string;
   status?: string;
@@ -62,6 +64,18 @@ type SalesItemStat = {
   revenue: number;
 };
 
+type IngredientReportItem = {
+  id: number;
+  ingredient_name: string;
+  unit: string;
+  quantity: number | null;
+  unit_price: number | null;
+};
+
+type UsedIngredientReportItem = IngredientReportItem & {
+  usedIn: string[];
+};
+
 function formatMoney(value: number) {
   return `₱${value.toFixed(2)}`;
 }
@@ -77,10 +91,13 @@ function csvEscape(value: unknown) {
 export default function ReportsPage() {
   const router = useRouter();
   const [shopName, setShopName] = useState("Shop");
-  const [shopColor, setShopColor] = useState("#073dbe");
+  const [shopColor, setShopColor] = useState("#6c3030");
   const [shopId, setShopId] = useState("1");
   const [orders, setOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [reportIngredients, setReportIngredients] = useState<IngredientReportItem[]>([]);
+  const [reportProducts, setReportProducts] = useState<any[]>([]);
+  const [usedIngredientSearch, setUsedIngredientSearch] = useState("");
   const [reportType, setReportType] = useState<ReportType>("daily");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -96,7 +113,7 @@ export default function ReportsPage() {
 
     if (storedShopName) setShopName(storedShopName);
     setShopId(storedShopId);
-    setShopColor(storedShopColor || (storedShopId === "2" ? "#fec107" : "#073dbe"));
+    setShopColor(storedShopColor || (storedShopId === "2" ? "#bc9b7a" : "#6c3030"));
   }, []);
 
   useEffect(() => {
@@ -114,9 +131,11 @@ export default function ReportsPage() {
         setLoading(true);
         const headers = { "x-shop-id": shopId };
 
-        const [ordersRes, cashflowRes] = await Promise.all([
+        const [ordersRes, cashflowRes, ingredientsRes, productsRes] = await Promise.all([
           fetch(api_links.tbl_orders, { headers }),
           fetch(api_links.tbl_cashflow, { headers }),
+          fetch(`${api_links.tbl_ingredients}?shop_id=${shopId}`, { headers }),
+          fetch(`${api_links.tbl_products}?shop_id=${shopId}`, { headers }),
         ]);
 
         if (!ordersRes.ok) {
@@ -127,11 +146,23 @@ export default function ReportsPage() {
           throw new Error(`Failed to load transactions: ${cashflowRes.status}`);
         }
 
+        if (!ingredientsRes.ok) {
+          throw new Error(`Failed to load ingredients: ${ingredientsRes.status}`);
+        }
+
+        if (!productsRes.ok) {
+          throw new Error(`Failed to load products: ${productsRes.status}`);
+        }
+
         const ordersData = await ordersRes.json();
         const cashflowData = await cashflowRes.json();
+        const ingredientsData = await ingredientsRes.json();
+        const productsData = await productsRes.json();
 
         setOrders(Array.isArray(ordersData) ? ordersData : []);
         setTransactions(Array.isArray(cashflowData) ? cashflowData : []);
+        setReportIngredients(Array.isArray(ingredientsData) ? ingredientsData : []);
+        setReportProducts(Array.isArray(productsData?.products) ? productsData.products : []);
       } catch (error) {
         console.error("Failed to load report data:", error);
         setModal({ show: true, type: "error", message: "Failed to load report data. Please try again." });
@@ -151,6 +182,77 @@ export default function ReportsPage() {
 
   const closeModal = () => setModal((current) => ({ ...current, show: false }));
 
+  const getStockThreshold = (unit: string) => {
+    if (unit === "pcs" || unit === "box") return 20;
+    if (unit === "ml") return 3000;
+    if (unit === "g") return 500;
+    if (unit === "L") return 3;
+    if (unit === "kg") return 0.5;
+    return 100;
+  };
+
+  const ingredientsToBuy = reportIngredients
+    .map((ingredient) => {
+      const currentQuantity = Number(ingredient.quantity) || 0;
+      const minimumQuantity = getStockThreshold(ingredient.unit);
+      return {
+        ...ingredient,
+        currentQuantity,
+        minimumQuantity,
+        suggestedPurchase: Math.max(0, minimumQuantity - currentQuantity),
+      };
+    })
+    .filter((ingredient) => ingredient.currentQuantity < ingredient.minimumQuantity)
+    .sort((first, second) => first.currentQuantity - second.currentQuantity);
+
+  const usedIngredients = useMemo(() => {
+    const ingredientMap = new Map<number, UsedIngredientReportItem>();
+    const ingredientDetails = new Map(
+      reportIngredients.map((ingredient) => [Number(ingredient.id), ingredient])
+    );
+
+    reportProducts.forEach((product) => {
+      (product.variants || []).forEach((variant: any) => {
+        (variant.ingredients || []).forEach((ingredient: any) => {
+          const ingredientId = Number(ingredient.ingredient_id);
+          if (Number.isNaN(ingredientId)) return;
+
+          const existing = ingredientMap.get(ingredientId);
+          const usedIn = `${product.product_name} - ${variant.variant_name || variant.name}`;
+          if (existing) {
+            if (!existing.usedIn.includes(usedIn)) existing.usedIn.push(usedIn);
+            return;
+          }
+
+          const details = ingredientDetails.get(ingredientId);
+
+          ingredientMap.set(ingredientId, {
+            id: ingredientId,
+            ingredient_name: ingredient.name || details?.ingredient_name || "Unknown ingredient",
+            unit: ingredient.unit || details?.unit || "",
+            quantity: ingredient.available ?? details?.quantity ?? null,
+            unit_price: details?.unit_price ?? null,
+            usedIn: [usedIn],
+          });
+        });
+      });
+    });
+
+    return Array.from(ingredientMap.values()).sort((first, second) =>
+      first.ingredient_name.localeCompare(second.ingredient_name)
+    );
+  }, [reportIngredients, reportProducts]);
+
+  const filteredUsedIngredients = useMemo(() => {
+    const query = usedIngredientSearch.trim().toLowerCase();
+    if (!query) return usedIngredients;
+
+    return usedIngredients.filter((ingredient) =>
+      ingredient.ingredient_name.toLowerCase().includes(query) ||
+      ingredient.usedIn.some((usage) => usage.toLowerCase().includes(query))
+    );
+  }, [usedIngredientSearch, usedIngredients]);
+
   const getDiscountAmount = (order: Order) => {
     return (order.items || []).reduce((sum, item) => {
       if (item.discount_type === "senior" || item.discount_type === "pwd") {
@@ -164,6 +266,7 @@ export default function ReportsPage() {
     const now = new Date();
 
     return orders.filter((order) => {
+      if (String(order.status || "").toLowerCase() !== "completed") return false;
       const orderDate = new Date(order.created_at);
 
       switch (reportType) {
@@ -239,6 +342,7 @@ export default function ReportsPage() {
 
     const getPeriodOrders = (periodType: NetIncomePeriod) => {
       return orders.filter((order) => {
+        if (String(order.status || "").toLowerCase() !== "completed") return false;
         const orderDate = new Date(order.created_at);
 
         switch (periodType) {
@@ -376,7 +480,7 @@ export default function ReportsPage() {
         ["Product", "Variant", "Quantity Sold", "Revenue"],
         ...stats.topProducts.map((item) => [item.product, item.variant, String(item.quantity), money(item.revenue)]),
         [],
-        ["Order ID", "Date & Time", "Customer", "Items", "Discount", "Total"],
+        ["Order ID", "Date & Time", "Customer", "Items", "Discount", "Total", "Edited"],
         ...filterOrdersByPeriod.map((order) => [
           `#${order.id}`,
           new Date(order.created_at).toLocaleString(),
@@ -384,6 +488,7 @@ export default function ReportsPage() {
           String(order.items?.length || 0),
           getDiscountAmount(order) > 0 ? `-${money(getDiscountAmount(order))}` : money(0),
           money(Number(order.total || 0)),
+          order.last_edited_at ? new Date(order.last_edited_at).toLocaleString() : "No",
         ]),
       ];
 
@@ -478,7 +583,7 @@ export default function ReportsPage() {
         <div class="section">
           <h2>Orders</h2>
           <table>
-            <thead><tr><th>Order</th><th>Date & Time</th><th>Customer</th><th>Items</th><th>Discount</th><th>Total</th></tr></thead>
+            <thead><tr><th>Order</th><th>Date & Time</th><th>Customer</th><th>Items</th><th>Discount</th><th>Total</th><th>Edited</th></tr></thead>
             <tbody>
               ${filterOrdersByPeriod.length > 0 ? filterOrdersByPeriod.map((order) => `
                 <tr>
@@ -488,6 +593,7 @@ export default function ReportsPage() {
                   <td>${order.items?.length || 0}</td>
                   <td>${getDiscountAmount(order) > 0 ? formatMoney(getDiscountAmount(order)) : "-"}</td>
                   <td><strong>${formatMoney(Number(order.total || 0))}</strong></td>
+                  <td>${order.last_edited_at ? new Date(order.last_edited_at).toLocaleString() : "No"}</td>
                 </tr>
               `).join("") : `<tr><td colspan="6" class="muted">No orders for this period.</td></tr>`}
             </tbody>
@@ -510,7 +616,7 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4" style={{ borderColor: shopColor }} />
           <p className="text-slate-600 font-medium">Loading sales data...</p>
@@ -520,7 +626,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-[#f8f1e8]">
       <Sidebar />
 
       <div className="flex-1 overflow-auto">
@@ -618,6 +724,86 @@ export default function ReportsPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+            <section className="bg-white rounded-2xl border border-slate-200 p-4 lg:p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Ingredients to Buy</h3>
+                  <p className="text-sm text-slate-500">Items below their minimum stock level</p>
+                </div>
+                <FiAlertCircle className="text-red-600" size={20} />
+              </div>
+              {ingredientsToBuy.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-500">No ingredients need restocking.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-slate-200 text-left">
+                      <tr>
+                        <th className="px-2 py-2 text-xs font-bold uppercase text-slate-600">Ingredient</th>
+                        <th className="px-2 py-2 text-xs font-bold uppercase text-slate-600">Current</th>
+                        <th className="px-2 py-2 text-xs font-bold uppercase text-slate-600">Buy</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {ingredientsToBuy.map((ingredient) => (
+                        <tr key={ingredient.id}>
+                          <td className="px-2 py-2 font-medium text-slate-900">{ingredient.ingredient_name}</td>
+                          <td className="px-2 py-2 text-red-600">{ingredient.currentQuantity} {ingredient.unit}</td>
+                          <td className="px-2 py-2 font-bold text-slate-900">{ingredient.suggestedPurchase} {ingredient.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-2xl border border-slate-200 p-4 lg:p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">All Ingredients Used</h3>
+                  <p className="text-sm text-slate-500">Ingredients included in product recipes</p>
+                </div>
+                <FiCheckCircle className="text-green-600" size={20} />
+              </div>
+              <div className="relative mb-4">
+                <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="search"
+                  value={usedIngredientSearch}
+                  onChange={(event) => setUsedIngredientSearch(event.target.value)}
+                  placeholder="Search ingredients used..."
+                  className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
+                />
+              </div>
+              {filteredUsedIngredients.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-500">No recipe ingredients found.</p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-slate-200 text-left">
+                      <tr>
+                        <th className="px-2 py-2 text-xs font-bold uppercase text-slate-600">Ingredient</th>
+                        <th className="px-2 py-2 text-xs font-bold uppercase text-slate-600">Times Used</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredUsedIngredients.map((ingredient) => (
+                        <tr key={ingredient.id}>
+                          <td className="px-2 py-2 font-medium text-slate-900">{ingredient.ingredient_name}</td>
+                          <td className="px-2 py-2 text-slate-600">
+                            {ingredient.usedIn.length} {ingredient.usedIn.length === 1 ? "recipe" : "recipes"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -756,6 +942,7 @@ export default function ReportsPage() {
                       <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">Items Ordered</th>
                       <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase">Discount</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">Total</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">Edited</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -807,6 +994,9 @@ export default function ReportsPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-right font-bold text-slate-900 text-sm">{formatMoney(Number(order.total || 0))}</td>
+                          <td className="px-4 py-3 text-slate-600 text-sm">
+                            {order.last_edited_at ? new Date(order.last_edited_at).toLocaleString() : "No"}
+                          </td>
                         </tr>
                       );
                     })}

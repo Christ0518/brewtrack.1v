@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(
                 {
                     ...shops[0],
-                    brand_color: shops[0].brand_color || "#073dbe",
+                    brand_color: shops[0].brand_color || "#6c3030",
                 },
                 { status: 200 }
             );
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(
             (shops || []).map((shop) => ({
                 ...shop,
-                brand_color: shop.brand_color || "#073dbe",
+                brand_color: shop.brand_color || "#6c3030",
             })),
             { status: 200 }
         );

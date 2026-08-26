@@ -16,6 +16,7 @@ import {
   FiX,
 } from "react-icons/fi";
 import { useAlertModal } from "@/hooks/useAlertModal";
+import { getShopTheme } from "@/lib/theme";
 
 interface Ingredient {
   ingredient_id: number | string;
@@ -47,6 +48,7 @@ export default function EditProduct({
   onCancel,
 }: EditProductProps) {
   const router = useRouter();
+  const theme = getShopTheme(shopId);
 
   const [form, setForm] = useState({
     category_id: "",
@@ -108,14 +110,20 @@ export default function EditProduct({
           })
         );
 
-        setForm({
-          category_id:         String(product?.category_id || ""),
-          product_name:        product?.product_name || "",
+        setForm((prev) => ({
+          ...prev,
+          category_id: String(product?.category_id || ""),
+          product_name: product?.product_name || "",
           product_description: product?.product_description || "",
-          image:               "",
-        });
+          image: product?.image || "",
+        }));
 
-        if (product?.image) setImagePreview(product.image);
+        if (product?.image) {
+          setImagePreview(product.image);
+        } else {
+          setImagePreview("");
+        }
+
         setVariants(productVariants);
       } catch (err) {
         console.error("Error loading product:", err);
@@ -283,11 +291,11 @@ export default function EditProduct({
   ========================= */
   if (fetching) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center">
         <AlertModal />
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#073dbe] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-600 font-medium">Loading product...</p>
+          <div className="w-16 h-16 border-4 border-[#6c3030] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#8a6245] font-medium">Loading product...</p>
         </div>
       </div>
     );
@@ -297,15 +305,15 @@ export default function EditProduct({
      UI
   ========================= */
   return (
-    <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
+    <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center p-4 lg:p-6">
       <AlertModal />
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full max-w-6xl">
 
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <div className="bg-[#073dbe] p-2.5 rounded-lg text-white">
+                <div className="p-2.5 text-white" style={{ backgroundColor: theme.accentColor }}>
                   <FiPackage />
                 </div>
                 Edit Product
@@ -325,7 +333,7 @@ export default function EditProduct({
 
         <form onSubmit={handleSubmit} className="space-y-6">
 
-          <div className="bg-white rounded-lg border border-slate-200 p-4 lg:p-6">
+          <div className="border border-slate-200 bg-white p-4 lg:p-6">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Product Information</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -423,13 +431,14 @@ export default function EditProduct({
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-4 lg:p-6">
+          <div className="border border-slate-200 bg-white p-4 lg:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-bold text-slate-900">Product Variants</h2>
               <button
                 type="button"
                 onClick={addVariant}
-                className="bg-[#073dbe] hover:bg-[#052d99] text-white px-3 py-2 rounded-lg transition-all font-medium flex items-center gap-2 text-sm"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition-all hover:opacity-90"
+                style={{ backgroundColor: theme.accentColor }}
                 disabled={loading}
               >
                 <FiPlus size={16} />
@@ -447,11 +456,11 @@ export default function EditProduct({
               {variants.map((variant, vi) => (
                 <div
                   key={vi}
-                  className="border border-slate-200 rounded-lg p-4 bg-slate-50"
+                  className="border border-slate-200 bg-slate-50 p-4"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-slate-900 flex items-center gap-2 text-sm">
-                      <span className="bg-[#073dbe] text-white w-6 h-6 rounded-lg flex items-center justify-center text-xs">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-lg text-xs text-white" style={{ backgroundColor: theme.accentColor }}>
                         {vi + 1}
                       </span>
                       Variant {vi + 1}
@@ -594,7 +603,8 @@ export default function EditProduct({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-[#073dbe] hover:bg-[#052d99] text-white py-3 rounded-lg transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg py-3 font-medium text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: theme.accentColor }}
             >
               {loading ? (
                 <>

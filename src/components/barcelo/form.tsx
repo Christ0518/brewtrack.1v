@@ -48,22 +48,35 @@ export default function Form() {
 
             const loginPayload = response.data as { data?: unknown } | undefined;
             const user = Array.isArray(loginPayload?.data)
-                ? loginPayload.data[0] as { role?: string; shop_id?: string | number } | undefined
-                : loginPayload?.data as { role?: string; shop_id?: string | number } | undefined;
+                ? loginPayload.data[0] as { name?: string; first_name?: string; last_name?: string; role?: string; user_role?: string; userRole?: string; shop_id?: string | number } | undefined
+                : loginPayload?.data as { name?: string; first_name?: string; last_name?: string; role?: string; user_role?: string; userRole?: string; shop_id?: string | number } | undefined;
 
             if (user) {
-                localStorage.setItem("user", JSON.stringify(user));
+                const normalizedUser = {
+                    ...user,
+                    name: user.name || [user.first_name, user.last_name].filter(Boolean).join(" "),
+                    first_name: user.first_name || user.name || "",
+                    last_name: user.last_name || "",
+                    role: String(user.role || user.user_role || user.userRole || "").trim().toLowerCase(),
+                    shop_id: user.shop_id ?? resolvedShopId,
+                };
+                localStorage.setItem("user", JSON.stringify(normalizedUser));
                 if (user.shop_id !== undefined && user.shop_id !== null) {
                     localStorage.setItem("shopId", String(user.shop_id));
                 }
             }
 
             if (shopResponse.success && shopResponse.data) {
-                const shopData = shopResponse.data as { name?: string; brand_color?: string | null };
+                const shopData = shopResponse.data as { name?: string; logo_url?: string | null; brand_color?: string | null };
                 if (shopData.name) {
                     localStorage.setItem("shopName", String(shopData.name));
                 }
-                localStorage.setItem("shopColor", shopData.brand_color || theme.accentColor);
+                if (shopData.logo_url) {
+                    localStorage.setItem("shopLogo", String(shopData.logo_url));
+                } else {
+                    localStorage.removeItem("shopLogo");
+                }
+                localStorage.setItem("shopColor", theme.accentColor);
             } else {
                 localStorage.setItem("shopColor", theme.accentColor);
             }

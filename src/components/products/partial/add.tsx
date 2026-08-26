@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
 import { useAlertModal } from "@/hooks/useAlertModal";
+import { getShopTheme } from "@/lib/theme";
 import {
   FiCheckCircle,
   FiImage,
@@ -48,6 +49,7 @@ export default function AddProduct({
   onSuccess?: () => void;
   onCancel?: () => void;
 }) {
+    const theme = getShopTheme(shopId);
   const [loading, setLoading] = useState(false);
   const [addingIngredient, setAddingIngredient] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -351,12 +353,12 @@ export default function AddProduct({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
+    <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center p-4 lg:p-6">
       <AlertModal />
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full max-w-6xl mx-auto">
         {showAddIngredient && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
-            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-md bg-white shadow-2xl">
               <div className="flex items-center justify-between p-4 border-b border-slate-200">
                 <h3 className="text-lg font-bold text-slate-900">Add New Ingredient</h3>
                 <button
@@ -384,7 +386,7 @@ export default function AddProduct({
                     onChange={(e) =>
                       setNewIngredient({ ...newIngredient, ingredient_name: e.target.value })
                     }
-                    className="w-full p-2.5 border border-slate-300 rounded-lg focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                    className="w-full p-2.5 border border-[#d6c3af] rounded-lg focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
                     disabled={addingIngredient}
                   />
                 </div>
@@ -403,7 +405,7 @@ export default function AddProduct({
                       }
                       step="0.01"
                       min="0"
-                      className="w-full p-2.5 border border-slate-300 rounded-lg focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                      className="w-full p-2.5 border border-[#d6c3af] rounded-lg focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
                       disabled={addingIngredient}
                     />
                   </div>
@@ -417,7 +419,7 @@ export default function AddProduct({
                       onChange={(e) =>
                         setNewIngredient({ ...newIngredient, unit: e.target.value })
                       }
-                      className="w-full p-2.5 border border-slate-300 rounded-lg focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-white cursor-pointer"
+                      className="w-full p-2.5 border border-[#d6c3af] rounded-lg focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none bg-white cursor-pointer"
                       disabled={addingIngredient}
                     >
                       {unitOptions.map((opt) => (
@@ -430,9 +432,9 @@ export default function AddProduct({
                 </div>
 
                 {newIngredient.quantity && newIngredient.unit && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-xs font-medium text-blue-900 mb-1">Conversion Preview:</p>
-                    <p className="text-sm text-blue-700">
+                  <div className="bg-[#f3e3cf] border border-[#d6c3af] rounded-lg p-3">
+                    <p className="text-xs font-medium text-[#6c3030] mb-1">Conversion Preview:</p>
+                    <p className="text-sm text-[#8a6245]">
                       {newIngredient.quantity} {newIngredient.unit} = {" "}
                       <span className="font-bold">
                         {convertToBaseUnit(newIngredient.quantity, newIngredient.unit).quantity}{" "}
@@ -472,7 +474,7 @@ export default function AddProduct({
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <div className="bg-[#073dbe] p-2.5 rounded-lg">
+                <div className="rounded-lg p-2.5" style={{ backgroundColor: theme.accentColor }}>
                   <FiPackage/>
                 </div>
                 Create Product
@@ -494,7 +496,7 @@ export default function AddProduct({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-4 lg:p-6">
+          <div className="border border-slate-200 bg-white p-4 lg:p-6">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Product Information</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -593,14 +595,14 @@ export default function AddProduct({
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-4 lg:p-6">
+          <div className="border border-slate-200 bg-white p-4 lg:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-bold text-slate-900">Product Variants</h2>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowAddIngredient(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg transition-all font-medium flex items-center gap-2 text-sm"
+                  className="bg-[#9b7653] hover:bg-[#754c35] text-white px-3 py-2 rounded-lg transition-all font-medium flex items-center gap-2 text-sm"
                   disabled={loading}
                 >
                   <FiPlus size={16} />
@@ -609,7 +611,8 @@ export default function AddProduct({
                 <button
                   type="button"
                   onClick={addVariant}
-                  className="bg-[#073dbe] hover:bg-[#052d99] text-white px-3 py-2 rounded-lg transition-all font-medium flex items-center gap-2 text-sm"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition-all hover:opacity-90"
+                  style={{ backgroundColor: theme.accentColor }}
                   disabled={loading}
                 >
                   <FiPlus size={16} />
@@ -622,7 +625,7 @@ export default function AddProduct({
               {variants.map((variant, index) => (
                 <div
                   key={index}
-                  className="border border-slate-200 rounded-lg p-4 bg-slate-50"
+                  className="border border-slate-200 bg-slate-50 p-4"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-slate-900 flex items-center gap-2 text-sm">
@@ -762,7 +765,8 @@ export default function AddProduct({
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="submit"
-              className="flex-1 bg-[#073dbe] hover:bg-[#052d99] text-white py-3 rounded-lg transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg py-3 font-medium text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: theme.accentColor }}
               disabled={loading}
             >
               {loading ? (

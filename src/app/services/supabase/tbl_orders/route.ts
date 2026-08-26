@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcrypt";
 import { supabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const verifyAdmin = async (adminPassword: unknown, shopId: string | null) => {
+  if (!adminPassword || !shopId) return false;
+
+  const { data: admins, error } = await supabaseServer
+    .from("tbl_users")
+    .select("password, role")
+    .eq("shop_id", Number(shopId))
+    .eq("role", "admin");
+
+  if (error || !admins?.length) return false;
+
+  for (const admin of admins) {
+    try {
+      if (await bcrypt.compare(String(adminPassword), String(admin.password || ""))) return true;
+    } catch {
+      // Fall back to plaintext comparison for legacy user rows.
+    }
+
+    if (String(adminPassword) === String(admin.password || "")) return true;
+  }
+
+  return false;
+};
 
 
 // CREATE ORDER with inventory deduction
@@ -22,6 +47,7 @@ export async function POST(req: NextRequest) {
       paid,
       change,
       customer_name,
+      table_number,
       notes
     } = body;
     const shopId = req.headers.get("x-shop-id") || "1";
@@ -52,6 +78,33 @@ export async function POST(req: NextRequest) {
       quantity: Number(item.quantity)
     }));
 
+    const addOnRequirements = new Map<number, number>();
+    for (const item of items) {
+      for (const addOn of item.addOns || []) {
+        const addOnId = Number(addOn.id);
+        const required = (Number(addOn.quantity_per_item) || 1) * Number(item.quantity);
+        if (!Number.isNaN(addOnId)) {
+          addOnRequirements.set(addOnId, (addOnRequirements.get(addOnId) || 0) + required);
+        }
+      }
+    }
+
+    for (const [addOnId, required] of addOnRequirements) {
+      const { data: topping, error: toppingError } = await supabaseServer
+        .from("tbl_toppings")
+        .select("id, name, quantity")
+        .eq("id", addOnId)
+        .eq("is_deleted", false)
+        .single();
+
+      if (toppingError || !topping || Number(topping.quantity) < required) {
+        return NextResponse.json(
+          { message: `Not enough ${topping?.name || "add-on"}. Need ${required}, only ${Number(topping?.quantity) || 0} available` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Deduct inventory based on recipe logic
     
 
@@ -64,6 +117,9 @@ export async function POST(req: NextRequest) {
         cashier_id: finalCashierId,
         order_type: order_type || "dine-in",
         status: status || "completed",
+        accepted_at: String(status || "completed").toLowerCase() === "preparing"
+          ? new Date().toISOString()
+          : null,
         total: Number(total),
         discount_type: discount_type || null,
         discount: discount ? Number(discount) : 0,
@@ -71,6 +127,7 @@ export async function POST(req: NextRequest) {
         change: change ? Number(change) : 0,
         shop_id: Number(shopId),
         customer_name: customer_name?.trim() ? customer_name : "Walk-in",
+        table_number: table_number ? Number(table_number) : null,
         notes: notes || null
       })
       .select("id")
@@ -115,6 +172,21 @@ export async function POST(req: NextRequest) {
       console.error("Warning: Order created but items not linked:", itemsError);
     }
 
+    for (const [addOnId, required] of addOnRequirements) {
+      const { data: topping } = await supabaseServer
+        .from("tbl_toppings")
+        .select("quantity")
+        .eq("id", addOnId)
+        .single();
+
+      if (topping) {
+        await supabaseServer
+          .from("tbl_toppings")
+          .update({ quantity: Math.max(0, Number(topping.quantity) - required) })
+          .eq("id", addOnId);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -136,7 +208,15 @@ export async function POST(req: NextRequest) {
 // GET ORDERS
 export async function GET(req: NextRequest) {
   try {
-    const shopId = req.headers.get("x-shop-id");
+    const url = new URL(req.url);
+    const shopId = req.headers.get("x-shop-id") || url.searchParams.get("shop_id");
+
+    if (!shopId || Number.isNaN(Number(shopId))) {
+      return NextResponse.json(
+        { message: "shop_id is required" },
+        { status: 400 }
+      );
+    }
 
     const { data: orders, error: ordersError } = await supabaseServer
       .from("tbl_orders")
@@ -152,8 +232,11 @@ export async function GET(req: NextRequest) {
         paid,
         change,
         created_at,
+        last_edited_at,
+        accepted_at,
         customer_name,
-        notes
+        notes,
+        edit_reason
       `
       )
       .eq("shop_id", shopId)
@@ -161,13 +244,13 @@ export async function GET(req: NextRequest) {
 
     if (ordersError) throw ordersError;
 
-    // Fetch items for each order
-    const ordersWithItems = await Promise.all(
-      (orders || []).map(async (order) => {
-        const { data: items, error: itemsError } = await supabaseServer
+    const orderIds = (orders || []).map((order) => order.id);
+    const { data: allItems, error: itemsError } = orderIds.length
+      ? await supabaseServer
           .from("tbl_orders_details")
           .select(
             `
+            order_id,
             id,
             variant_id,
             quantity,
@@ -186,9 +269,20 @@ export async function GET(req: NextRequest) {
             )
           `
           )
-          .eq("order_id", order.id);
+          .in("order_id", orderIds)
+      : { data: [], error: null };
 
-        if (itemsError) throw itemsError;
+    if (itemsError) throw itemsError;
+
+    const itemsByOrder = new Map<number, any[]>();
+    (allItems || []).forEach((item: any) => {
+      const orderItems = itemsByOrder.get(item.order_id) || [];
+      orderItems.push(item);
+      itemsByOrder.set(item.order_id, orderItems);
+    });
+
+    const ordersWithItems = (orders || []).map((order) => {
+        const items = itemsByOrder.get(order.id) || [];
 
         const formattedItems = items?.map((item: any) => {
           const variant = Array.isArray(item.tbl_product_variants)
@@ -215,8 +309,7 @@ export async function GET(req: NextRequest) {
         });
 
         return { ...order, items: formattedItems };
-      })
-    );
+      });
 
     return NextResponse.json(ordersWithItems, {
       headers: {
@@ -236,7 +329,12 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, items, total, discount_type, discount, paid, change } = body;
+    const { id, items, total, discount_type, discount, paid, change, customer_name, notes, edit_reason, admin_password } = body;
+    const shopId = req.headers.get("x-shop-id");
+
+    if (!(await verifyAdmin(admin_password, shopId))) {
+      return NextResponse.json({ message: "Admin password is required to edit an order" }, { status: 403 });
+    }
 
     if (!id || !items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -248,28 +346,36 @@ export async function PUT(req: NextRequest) {
     // Get old items to restore ingredients
     const { data: oldItems, error: oldItemsError } = await supabaseServer
       .from("tbl_orders_details")
-      .select(
-        `
-        id,
-        variant_id,
-        quantity,
-        tbl_product_ingredients (
-          ingredient_id,
-          amount
-        )
-      `
-      )
+      .select("id, variant_id, quantity")
       .eq("order_id", id);
 
     if (oldItemsError) throw oldItemsError;
 
+    const oldVariantIds = Array.from(
+      new Set((oldItems || []).map((item: any) => Number(item.variant_id)).filter((value) => !Number.isNaN(value)))
+    );
+    const { data: oldIngredients, error: oldIngredientsError } = oldVariantIds.length > 0
+      ? await supabaseServer
+          .from("tbl_product_ingredients")
+          .select("variant_id, ingredient_id, amount")
+          .in("variant_id", oldVariantIds)
+      : { data: [], error: null };
+
+    if (oldIngredientsError) throw oldIngredientsError;
+
+    const ingredientsByVariant = new Map<number, Array<{ ingredient_id: number; amount: number }>>();
+    for (const ingredient of oldIngredients || []) {
+      const variantId = Number((ingredient as any).variant_id);
+      if (!ingredientsByVariant.has(variantId)) ingredientsByVariant.set(variantId, []);
+      ingredientsByVariant.get(variantId)!.push({
+        ingredient_id: Number((ingredient as any).ingredient_id),
+        amount: Number((ingredient as any).amount) || 0,
+      });
+    }
+
     // Restore old ingredients
     for (const oldItem of oldItems || []) {
-      const ingredients = Array.isArray(oldItem.tbl_product_ingredients)
-        ? oldItem.tbl_product_ingredients
-        : oldItem.tbl_product_ingredients
-        ? [oldItem.tbl_product_ingredients]
-        : [];
+      const ingredients = ingredientsByVariant.get(Number((oldItem as any).variant_id)) || [];
 
       for (const ing of ingredients) {
         const amountToRestore = (ing.amount || 0) * oldItem.quantity;
@@ -297,6 +403,10 @@ export async function PUT(req: NextRequest) {
         discount: discount ? Number(discount) : 0,
         paid: paid ? Number(paid) : Number(total),
         change: change ? Number(change) : 0,
+        customer_name: customer_name?.trim() ? customer_name.trim() : "Walk-in",
+        notes: notes ? String(notes).trim() : null,
+        last_edited_at: new Date().toISOString(),
+        edit_reason: edit_reason ? String(edit_reason).trim() : null,
       })
       .eq("id", id);
 
@@ -319,31 +429,46 @@ export async function PUT(req: NextRequest) {
       }
 
       // Get new ingredients
-      const { data: newVariantIngredients, error: ingredientError } = await supabaseServer
+      const { data: recipeIngredients, error: ingredientError } = await supabaseServer
         .from("tbl_product_ingredients")
-        .select(
-          `
-          ingredient_id,
-          amount,
-          tbl_inventory(quantity),
-          tbl_ingredients(ingredient_name)
-        `
-        )
+        .select("ingredient_id, amount")
         .eq("variant_id", variant_id);
 
       if (ingredientError) throw ingredientError;
 
+      const newVariantIngredients = await Promise.all(
+        (recipeIngredients || []).map(async (recipe: any) => {
+          const [{ data: inventory }, { data: ingredient }] = await Promise.all([
+            supabaseServer
+              .from("tbl_inventory")
+              .select("quantity")
+              .eq("ingredient_id", recipe.ingredient_id)
+              .single(),
+            supabaseServer
+              .from("tbl_ingredients")
+              .select("ingredient_name")
+              .eq("id", recipe.ingredient_id)
+              .single(),
+          ]);
+
+          return {
+            ingredient_id: recipe.ingredient_id,
+            amount: Number(recipe.amount) || 0,
+            inventory_quantity: Number(inventory?.quantity) || 0,
+            ingredient_name: ingredient?.ingredient_name || `Ingredient ${recipe.ingredient_id}`,
+          };
+        })
+      );
+
       // Check ingredient availability
       for (const ing of newVariantIngredients || []) {
         const requiredAmount = (ing.amount || 0) * quantity;
-        const inventory = Array.isArray(ing.tbl_inventory) ? ing.tbl_inventory[0] : ing.tbl_inventory;
-        const available = inventory?.quantity || 0;
-        const ingredient = Array.isArray(ing.tbl_ingredients) ? ing.tbl_ingredients[0] : ing.tbl_ingredients;
+        const available = ing.inventory_quantity;
 
         if (available < requiredAmount) {
           return NextResponse.json(
             {
-              message: `Not enough ${ingredient?.ingredient_name || "ingredient"}. Need ${requiredAmount}, only ${available} available`,
+              message: `Not enough ${ing.ingredient_name}. Need ${requiredAmount}, only ${available} available`,
             },
             { status: 400 }
           );
@@ -437,7 +562,49 @@ export async function PUT(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, status } = body;
+    const { id, status, action, admin_password, customer_name, notes } = body;
+    const shopId = req.headers.get("x-shop-id");
+
+    if (action === "edit" || action === "delete") {
+      const authorized = await verifyAdmin(admin_password, shopId);
+      if (!authorized) {
+        return NextResponse.json({ message: "Admin password is incorrect" }, { status: 403 });
+      }
+
+      const orderId = Number(id);
+      if (!orderId || Number.isNaN(orderId)) {
+        return NextResponse.json({ message: "Order ID required" }, { status: 400 });
+      }
+
+      if (action === "delete") {
+        const { error: detailsError } = await supabaseServer
+          .from("tbl_orders_details")
+          .delete()
+          .eq("order_id", orderId);
+        if (detailsError) throw detailsError;
+
+        const { error: deleteError } = await supabaseServer
+          .from("tbl_orders")
+          .delete()
+          .eq("id", orderId)
+          .eq("shop_id", Number(shopId));
+        if (deleteError) throw deleteError;
+
+        return NextResponse.json({ message: "Order deleted successfully" });
+      }
+
+      const { error: editError } = await supabaseServer
+        .from("tbl_orders")
+        .update({
+          customer_name: String(customer_name || "Walk-in").trim() || "Walk-in",
+          notes: notes ? String(notes).trim() : null,
+        })
+        .eq("id", orderId)
+        .eq("shop_id", Number(shopId));
+      if (editError) throw editError;
+
+      return NextResponse.json({ message: "Order updated successfully" });
+    }
 
     if (!id || !status) {
       return NextResponse.json(
@@ -450,7 +617,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data: existingOrder, error: orderError } = await supabaseServer
       .from("tbl_orders")
-      .select("id, status")
+      .select("id, status, accepted_at")
       .eq("id", id)
       .single();
 
@@ -546,7 +713,14 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const { error } = await supabaseServer.from("tbl_orders").update({ status }).eq("id", id);
+    const updateValues = {
+      status,
+      ...(nextStatus === "preparing" && existingOrder.status !== "preparing" && !existingOrder.accepted_at
+        ? { accepted_at: new Date().toISOString() }
+        : {}),
+    };
+
+    const { error } = await supabaseServer.from("tbl_orders").update(updateValues).eq("id", id);
 
     if (error) throw error;
 

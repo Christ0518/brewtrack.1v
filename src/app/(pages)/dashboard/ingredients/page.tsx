@@ -16,12 +16,10 @@ export default function IngredientsRoute() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-[#f8f1e8]">
       <Sidebar />
       <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          <IngredientsPage shopId={shopId} />
-        </div>
+        <IngredientsPage shopId={shopId} />
       </div>
     </div>
   );

@@ -42,10 +42,10 @@ export default function CategoryForm({
 
       if (response.success) {
         setNewCategoryName("");
+        onSuccess?.();
         showAlert("Category added successfully!", {
           variant: "success",
           title: "Category Added",
-          onClose: onSuccess,
         });
       } else {
         setCategoryError(response.message || "Failed to add category");
@@ -66,9 +66,9 @@ export default function CategoryForm({
   return (
     <>
       <AlertModal />
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4 z-50">
-        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-slate-200 p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">
+      <div className="fixed inset-0 bg-transparent backdrop-blur-sm flex justify-center items-center p-4 z-50">
+        <div className="bg-white w-full max-w-md rounded-lg shadow-xl border border-[#d6c3af] p-6">
+          <h2 className="text-xl font-bold text-[#6c3030] mb-4">
             Add New Category
           </h2>
 
@@ -87,7 +87,7 @@ export default function CategoryForm({
             value={newCategoryName}
             onChange={(e) => setNewCategoryName(e.target.value)}
             placeholder="e.g., Hot Beverages, Pastries"
-            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+            className="w-full px-3.5 py-2.5 border border-[#d6c3af] rounded-lg text-[#6c3030] bg-white focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5] transition-all outline-none"
             autoFocus
             disabled={loading}
           />
@@ -96,14 +96,14 @@ export default function CategoryForm({
         <div className="flex gap-3">
           <button
             onClick={handleCancel}
-            className="flex-1 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 bg-[#f3e3cf] text-[#6e5338] rounded-lg hover:bg-[#ead8c5] transition-colors font-medium disabled:opacity-50"
             disabled={loading}
           >
             Cancel
           </button>
           <button
             onClick={handleAddCategory}
-            className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2.5 bg-[#6c3030] hover:bg-[#522424] text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={loading}
           >
             {loading ? "Adding..." : "Add Category"}

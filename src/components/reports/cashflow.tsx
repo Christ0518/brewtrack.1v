@@ -32,7 +32,7 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
   const isEditMode = Boolean(transactionId);
 
   const [shopId, setShopId] = useState("1");
-  const [shopColor, setShopColor] = useState("#073dbe");
+  const [shopColor, setShopColor] = useState("#6c3030");
   const [loading, setLoading] = useState(isEditMode);
   const [submitting, setSubmitting] = useState(false);
   const [modal, setModal] = useState<ModalState>({ show: false, type: "success", message: "" });
@@ -183,24 +183,23 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center">
         <div className="text-center">
           <div
             className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4"
             style={{ borderColor: shopColor }}
           />
-          <p className="text-slate-600 font-medium">Loading transaction...</p>
+          <p className="text-[#8a6245] font-medium">Loading transaction...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-[#f8f1e8]">
       <Sidebar />
 
       <div className="flex-1 overflow-auto p-4 lg:p-6">
-        <div className="max-w-2xl mx-auto">
           <div className="mb-6">
             <button
               onClick={backToReports}
@@ -211,16 +210,16 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
               Back to Reports
             </button>
 
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">{isEditMode ? "Edit Transaction" : "New Transaction"}</h1>
-            <p className="text-slate-600">
+            <h1 className="text-3xl font-bold text-[#6c3030] mb-2">{isEditMode ? "Edit Transaction" : "New Transaction"}</h1>
+            <p className="text-[#8a6245]">
               {isEditMode ? "Update the transaction details below" : "Record a new cash in or cash out transaction"}
             </p>
           </div>
 
-          <div className="bg-white rounded-lg border border-slate-200 p-6 lg:p-8">
+          <div className="max-w-2xl mx-auto bg-white rounded-lg border border-[#d6c3af] p-6 lg:p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-3">
+                <label className="block text-sm font-bold text-[#6c3030] mb-3">
                   Transaction Type <span className="text-red-600">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -234,7 +233,7 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                           ? type === "payin"
                             ? "border-green-600 bg-green-50 text-green-900"
                             : "border-red-600 bg-red-50 text-red-900"
-                          : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                          : "border-[#d6c3af] bg-white text-[#8a6245] hover:border-[#bc9b7a]"
                       }`}
                     >
                       {type === "payin" ? "Pay In" : "Pay Out"}
@@ -244,7 +243,7 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-3">
+                <label className="block text-sm font-bold text-[#6c3030] mb-3">
                   Category <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -253,14 +252,14 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                   value={formData.category}
                   onChange={handleFormChange}
                   placeholder="e.g., Petty Cash, Supplies, Payroll"
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg transition-all outline-none text-sm font-medium"
+                  className="w-full px-4 py-3 border border-[#d6c3af] rounded-lg transition-all outline-none text-sm font-medium focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
                   style={{ borderColor: "#cbd5e1" }}
                 />
                 <p className="text-xs text-slate-500 mt-2">Enter any category name</p>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-3">
+                <label className="block text-sm font-bold text-[#6c3030] mb-3">
                   Description <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -269,13 +268,13 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                   value={formData.description}
                   onChange={handleFormChange}
                   placeholder="e.g., Coffee beans purchase, Daily sales, Employee salary"
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg transition-all outline-none text-sm"
+                  className="w-full px-4 py-3 border border-[#d6c3af] rounded-lg transition-all outline-none text-sm focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
                 />
                 <p className="text-xs text-slate-500 mt-2">Provide a clear description of the transaction</p>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-3">
+                <label className="block text-sm font-bold text-[#6c3030] mb-3">
                   Amount (PHP) <span className="text-red-600">*</span>
                 </label>
                 <div className="relative">
@@ -287,31 +286,31 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                     onChange={handleFormChange}
                     placeholder="0.00"
                     min="0"
-                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg transition-all outline-none text-sm font-medium"
+                    className="w-full pl-12 pr-4 py-3 border border-[#d6c3af] rounded-lg transition-all outline-none text-sm font-medium focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-3">Date</label>
+                <label className="block text-sm font-bold text-[#6c3030] mb-3">Date</label>
                 <input
                   type="date"
                   name="date"
                   value={formData.date}
                   onChange={handleFormChange}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg transition-all outline-none text-sm font-medium"
+                  className="w-full px-4 py-3 border border-[#d6c3af] rounded-lg transition-all outline-none text-sm font-medium focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-3">Reference / Notes</label>
+                <label className="block text-sm font-bold text-[#6c3030] mb-3">Reference / Notes</label>
                 <input
                   type="text"
                   name="reference"
                   value={formData.reference}
                   onChange={handleFormChange}
                   placeholder="e.g., Invoice 12345, Check 001, Receipt 789"
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg transition-all outline-none text-sm"
+                  className="w-full px-4 py-3 border border-[#d6c3af] rounded-lg transition-all outline-none text-sm focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
                 />
                 <p className="text-xs text-slate-500 mt-2">Optional: Add invoice number, check number, or any reference</p>
               </div>
@@ -332,7 +331,7 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                 <button
                   type="button"
                   onClick={backToReports}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 px-6 py-3 rounded-lg transition-all font-medium text-base"
+                  className="flex-1 bg-[#f3e3cf] hover:bg-[#ead8c5] text-[#6c3030] px-6 py-3 rounded-lg transition-all font-medium text-base"
                 >
                   Cancel
                 </button>
@@ -348,7 +347,6 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
             </form>
           </div>
         </div>
-      </div>
 
       {modal.show && (
         <div

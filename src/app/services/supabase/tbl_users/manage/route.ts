@@ -10,6 +10,7 @@ type UserCreatePayload = {
   last_name?: string;
   role?: string;
   password?: string;
+  admin_password?: string;
 };
 
 type UserUpdatePayload = {
@@ -18,6 +19,7 @@ type UserUpdatePayload = {
   first_name?: string;
   last_name?: string;
   role?: string;
+  admin_password?: string;
 };
 
 type PasswordPayload = {
@@ -25,6 +27,23 @@ type PasswordPayload = {
   current_password?: string;
   new_password?: string;
   mode?: "change" | "forgot";
+  admin_password?: string;
+};
+
+const verifyAdminPassword = async (password: unknown, shopId: number) => {
+  if (!password) return false;
+
+  const { data: admins, error } = await supabaseServer
+    .from("tbl_users")
+    .select("password")
+    .eq("shop_id", shopId)
+    .eq("role", "admin");
+
+  if (error || !admins?.length) return false;
+  for (const admin of admins) {
+    if (await verifyPassword(String(password), String(admin.password || ""))) return true;
+  }
+  return false;
 };
 
 const normalizeUser = (row: UserRow) => {
@@ -105,6 +124,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
     }
 
+    if (!(await verifyAdminPassword(body.admin_password, shopId))) {
+      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
+    }
+
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
     const insertPayload = {
@@ -151,6 +174,10 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
     }
 
+    if (!(await verifyAdminPassword(body.admin_password, shopId))) {
+      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
+    }
+
     const updatePayload = {
       name: body.name,
       first_name: body.first_name,
@@ -191,6 +218,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, message: "id is required" }, { status: 400 });
     }
 
+    const adminPassword = (await req.json().catch(() => ({}))) as { admin_password?: string };
+    if (!(await verifyAdminPassword(adminPassword.admin_password, shopId))) {
+      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
+    }
+
     const { error } = await supabaseServer
       .from("tbl_users")
       .delete()
@@ -224,6 +256,10 @@ export async function PATCH(req: NextRequest) {
 
     if (!body.new_password || body.new_password.length < 8) {
       return NextResponse.json({ success: false, message: "New password must be at least 8 characters" }, { status: 400 });
+    }
+
+    if (!(await verifyAdminPassword(body.admin_password, shopId))) {
+      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
     }
 
     const { data: userRow, error: userError } = await supabaseServer

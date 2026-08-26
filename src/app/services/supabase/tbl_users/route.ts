@@ -40,21 +40,24 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as LoginPayload;
     const { name, password, shopId } = body;
 
-    if (!name || !password || shopId === undefined || shopId === null) {
+    if (!name || !password) {
       return NextResponse.json({ success: false, message: "No Existing Field" }, { status: 400 });
     }
 
-    const normalizedShopId = normalizeShopId(shopId);
-    if (!normalizedShopId) {
-      return NextResponse.json({ success: false, message: "Invalid shopId" }, { status: 400 });
-    }
-
-    const { data, error } = await supabaseServer
+    let query = supabaseServer
       .from("tbl_users")
       .select("*")
-      .eq("name", name)
-      .eq("shop_id", normalizedShopId)
-      .limit(1);
+      .eq("name", name);
+
+    if (shopId !== undefined && shopId !== null) {
+      const normalizedShopId = normalizeShopId(shopId);
+      if (!normalizedShopId) {
+        return NextResponse.json({ success: false, message: "Invalid shopId" }, { status: 400 });
+      }
+      query = query.eq("shop_id", normalizedShopId);
+    }
+
+    const { data, error } = await query.limit(1);
 
     if (error) {
       return NextResponse.json({ success: false, message: "Supabase got an error" }, { status: 500 });

@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
           id,
           ingredient_name,
           unit,
-          unit_price
+          unit_price,
+          expiration_date
         `)
         .eq("id", id)
         .eq("shop_id", shopId)
@@ -59,10 +60,17 @@ export async function GET(req: NextRequest) {
         .eq("ingredient_id", id)
         .maybeSingle();
 
+      const { data: batches } = await supabaseServer
+        .from("ingredient_batches")
+        .select("id, quantity, remaining_quantity, expiration_date, unit_price, created_at")
+        .eq("ingredient_id", id)
+        .order("expiration_date", { ascending: true, nullsFirst: false });
+
       const ingredient = {
         ...data,
         quantity: invData?.quantity || null,
-        minimum_stock:invData?.minimum_stock || null
+        minimum_stock: invData?.minimum_stock || null,
+        batches: batches || []
       };
 
       return NextResponse.json(ingredient, { status: 200 });
@@ -75,7 +83,8 @@ export async function GET(req: NextRequest) {
         id,
         ingredient_name,
         unit,
-        unit_price
+        unit_price,
+        expiration_date
       `)
       .eq("shop_id", shopId)
       .eq("is_deleted", 0)
@@ -94,8 +103,6 @@ export async function GET(req: NextRequest) {
       .from("tbl_inventory")
       .select("ingredient_id, quantity, minimum_stock");
 
-    console.log("DEBUG - invData from tbl_inventory:", invData);
-
     const invMap = new Map(
       invData?.map((inv: any) => [
         inv.ingredient_id,
@@ -103,15 +110,28 @@ export async function GET(req: NextRequest) {
       ]) || []
     );
 
-    console.log("DEBUG - invMap:", Array.from(invMap.entries()));
+    const ingredientIds = data.map((ingredient: any) => ingredient.id);
+    const { data: batchData } = ingredientIds.length
+      ? await supabaseServer
+          .from("ingredient_batches")
+          .select("id, ingredient_id, quantity, remaining_quantity, expiration_date, unit_price, created_at")
+          .in("ingredient_id", ingredientIds)
+          .order("expiration_date", { ascending: true, nullsFirst: false })
+      : { data: [] };
+    const batchMap = new Map<number, any[]>();
+    (batchData || []).forEach((batch: any) => {
+      const current = batchMap.get(batch.ingredient_id) || [];
+      current.push(batch);
+      batchMap.set(batch.ingredient_id, current);
+    });
 
     const ingredients = data.map((ing: any) => {
       const inv = invMap.get(ing.id);
-      console.log(`DEBUG - ingredient ${ing.id} (${ing.ingredient_name}): inv =`, inv);
       return {
         ...ing,
         quantity: inv?.quantity || null,
-        minimum_stock: inv?.minimum_stock || null
+        minimum_stock: inv?.minimum_stock || null,
+        batches: batchMap.get(ing.id) || []
       };
     });
 
@@ -132,7 +152,7 @@ export async function POST(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const shopId = url.searchParams.get("shop_id");
-    const { ingredient_name, unit, quantity, unit_price, minimum_stock } = await req.json();
+    const { ingredient_name, unit, quantity, unit_price, minimum_stock, expiration_date } = await req.json();
 
     if (!shopId || isNaN(Number(shopId))) {
       return NextResponse.json(
@@ -144,6 +164,13 @@ export async function POST(req: NextRequest) {
     if (!ingredient_name || !unit) {
       return NextResponse.json(
         { message: "Missing required fields (ingredient_name, unit)" },
+        { status: 400 }
+      );
+    }
+
+    if (!expiration_date) {
+      return NextResponse.json(
+        { message: "Expiration date is required for each ingredient batch" },
         { status: 400 }
       );
     }
@@ -165,42 +192,92 @@ export async function POST(req: NextRequest) {
       ? 0
       : Number(quantity);
 
-    // Insert ingredient
-    const { data: ingredientData, error: ingredientError } = await supabaseServer
+    const { data: existingIngredient, error: existingIngredientError } = await supabaseServer
       .from("tbl_ingredients")
-      .insert([{
-        ingredient_name,
-        unit,
-        unit_price: price,
-        shop_id: shopId,
-        is_deleted: 0
-      }])
-      .select("id");
+      .select("id, unit_price")
+      .eq("shop_id", shopId)
+      .eq("ingredient_name", ingredient_name.trim())
+      .eq("is_deleted", 0)
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    if (ingredientError) {
-      console.error("Error adding ingredient:", ingredientError);
+    if (existingIngredientError) {
       return NextResponse.json(
-        { message: "Cannot add ingredient", error: ingredientError.message },
+        { message: "Cannot find ingredient", error: existingIngredientError.message },
         { status: 500 }
       );
     }
 
-    const ingredient_id = ingredientData[0].id;
+    let ingredient_id = existingIngredient?.id;
+    if (!ingredient_id) {
+      const { data: ingredientData, error: ingredientError } = await supabaseServer
+        .from("tbl_ingredients")
+        .insert([{
+          ingredient_name: ingredient_name.trim(),
+          unit,
+          unit_price: price,
+          expiration_date: expiration_date,
+          shop_id: shopId,
+          is_deleted: 0
+        }])
+        .select("id")
+        .single();
 
-    // Insert inventory record
-    const { data: inventoryData, error: inventoryError } = await supabaseServer
+      if (ingredientError) {
+        console.error("Error adding ingredient:", ingredientError);
+        return NextResponse.json(
+          { message: "Cannot add ingredient", error: ingredientError.message },
+          { status: 500 }
+        );
+      }
+      ingredient_id = ingredientData.id;
+    }
+
+    const { data: inventoryData } = await supabaseServer
       .from("tbl_inventory")
+      .select("id, quantity, minimum_stock")
+      .eq("ingredient_id", ingredient_id)
+      .maybeSingle();
+
+    const totalQuantity = Number(inventoryData?.quantity || 0) + qty;
+    const { data: savedInventory, error: inventoryError } = inventoryData
+      ? await supabaseServer
+          .from("tbl_inventory")
+          .update({ quantity: totalQuantity, minimum_stock: minimum_stock ?? inventoryData.minimum_stock })
+          .eq("id", inventoryData.id)
+          .select("id")
+          .single()
+      : await supabaseServer
+          .from("tbl_inventory")
+          .insert([{ ingredient_id, quantity: qty, minimum_stock: minimum_stock ?? null }])
+          .select("id")
+          .single();
+
+    if (inventoryError) {
+      console.error("Error saving inventory:", inventoryError);
+      return NextResponse.json(
+        { message: "Cannot save inventory", error: inventoryError.message },
+        { status: 500 }
+      );
+    }
+
+    const { data: savedBatch, error: batchError } = await supabaseServer
+      .from("ingredient_batches")
       .insert([{
         ingredient_id,
         quantity: qty,
-        minimum_stock: minimum_stock ?? null
+        remaining_quantity: qty,
+        expiration_date,
+        unit_price: price ?? existingIngredient?.unit_price ?? null
       }])
-      .select("id");
+      .select("id")
+      .single();
 
-    if (inventoryError) {
-      console.error("Error adding inventory:", inventoryError);
+    if (batchError) {
+      console.error("Error adding ingredient batch:", batchError);
       return NextResponse.json(
-        { message: "Cannot add inventory", error: inventoryError.message },
+        { message: "Cannot add ingredient batch", error: batchError.message },
         { status: 500 }
       );
     }
@@ -208,8 +285,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         message: "Ingredient + inventory saved",
+        batch_id: savedBatch.id,
         ingredient_id,
-        inventory_id: inventoryData[0].id
+        inventory_id: savedInventory.id
       },
       { status: 201 }
     );
@@ -228,7 +306,7 @@ export async function PUT(req: NextRequest) {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
     const shopId = url.searchParams.get("shop_id");
-    const { ingredient_name, unit, quantity, unit_price, minimum_stock } = await req.json();
+    const { ingredient_name, unit, quantity, unit_price, minimum_stock, expiration_date } = await req.json();
 
     if (!shopId || isNaN(Number(shopId))) {
       return NextResponse.json(
@@ -270,6 +348,9 @@ export async function PUT(req: NextRequest) {
     };
     if (price !== null) {
       updateData.unit_price = price;
+    }
+    if (expiration_date !== undefined) {
+      updateData.expiration_date = expiration_date || null;
     }
 
     const { data: ingredientData, error: ingredientError } = await supabaseServer
