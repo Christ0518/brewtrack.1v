@@ -85,6 +85,15 @@ export default function Home() {
         return;
       }
 
+      const sessionCheck = await Fetch_to(api_links.jwt.verify);
+      if (!sessionCheck.success) {
+        showAlert("Login succeeded, but the session cookie was not accepted. Please try again.", {
+          variant: "error",
+          title: "Session Error",
+        });
+        return;
+      }
+
       window.location.replace(getPostLoginRoute(normalizedRole));
     } catch (error) {
       console.error("Login error:", error);

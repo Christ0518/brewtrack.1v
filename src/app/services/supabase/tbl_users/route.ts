@@ -21,8 +21,9 @@ const verifyPassword = async (plainPassword: string, hashedPassword: string) => 
 
 const normalizeUserRole = (user: Record<string, unknown>) => {
   const role = user.role ?? user.user_role ?? user.userRole;
+  const { password: _password, ...safeUser } = user;
   return {
-    ...user,
+    ...safeUser,
     role: typeof role === "string" ? role : undefined,
   };
 };
