@@ -4,6 +4,10 @@ import jwt from "jsonwebtoken";
 const protectedRoutes = ["/dashboard", "/cashier", "/kitchen", "/order"];
 
 export function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname === "/barcelo" || request.nextUrl.pathname === "/goodcoffee") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   const isProtectedRoute = protectedRoutes.some((route) =>
     request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(`${route}/`)
   );
@@ -12,9 +16,7 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get("token")?.value;
   if (!token) {
-    const shopId = request.nextUrl.pathname.split("/")[2];
-    const loginPath = shopId === "2" ? "/goodcoffee" : "/barcelo";
-    return NextResponse.redirect(new URL(loginPath, request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   try {
@@ -33,5 +35,7 @@ export const config = {
     "/cashier/:path*",
     "/kitchen/:path*",
     "/order/:path*",
+    "/barcelo",
+    "/goodcoffee",
   ],
 };
