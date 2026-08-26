@@ -85,7 +85,7 @@ export default function Home() {
         return;
       }
 
-      router.replace(getPostLoginRoute(normalizedRole));
+      window.location.replace(getPostLoginRoute(normalizedRole));
     } catch (error) {
       console.error("Login error:", error);
       showAlert("Unable to log in. Please try again.", { variant: "error", title: "Login Failed" });
