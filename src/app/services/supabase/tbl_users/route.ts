@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       query = query.eq("shop_id", normalizedShopId);
     }
 
-    const { data, error } = await query.limit(1);
+    const { data, error } = await query.limit(20);
 
     if (error) {
       return NextResponse.json({ success: false, message: "Supabase got an error" }, { status: 500 });
@@ -67,15 +67,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "User not exist" }, { status: 404 });
     }
 
-    const verified = await verifyPassword(password, String(data[0].password || ""));
-    if (!verified) {
+    let authenticatedUser: (typeof data)[number] | undefined;
+    for (const user of data) {
+      if (await verifyPassword(password, String(user.password || ""))) {
+        authenticatedUser = user;
+        break;
+      }
+    }
+    if (!authenticatedUser) {
       return NextResponse.json({ success: false, message: "Wrong Password" }, { status: 403 });
     }
 
     return NextResponse.json(
       {
         success: true,
-        data: (data || []).map((user) => normalizeUserRole(user as Record<string, unknown>)),
+        data: [normalizeUserRole(authenticatedUser as Record<string, unknown>)],
       },
       { status: 200 }
     );
