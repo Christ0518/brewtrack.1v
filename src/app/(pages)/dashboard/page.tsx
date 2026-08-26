@@ -87,7 +87,9 @@ export default function Dashboard() {
     }, [orders]);
 
     const todayRevenue = useMemo(
-        () => todayOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+        () => todayOrders
+            .filter((order) => String(order.status || "").toLowerCase() === "completed")
+            .reduce((sum, order) => sum + Number(order.total || 0), 0),
         [todayOrders]
     );
 
