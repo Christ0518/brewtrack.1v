@@ -78,7 +78,12 @@ export default function Home() {
         if (shop.brand_color) localStorage.setItem("shopColor", shop.brand_color);
       }
 
-      await Fetch_to(api_links.jwt.auth, { email: name.trim() });
+      const sessionResponse = await Fetch_to(api_links.jwt.auth, { email: name.trim() });
+      if (!sessionResponse.success) {
+        showAlert(sessionResponse.message || "Unable to create login session", { variant: "error", title: "Login Failed" });
+        return;
+      }
+
       router.push(getPostLoginRoute(user.role));
     } catch (error) {
       console.error("Login error:", error);
