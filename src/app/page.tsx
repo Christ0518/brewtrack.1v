@@ -53,12 +53,13 @@ export default function Home() {
         return;
       }
 
+      const normalizedRole = String(user.role || user.user_role || user.userRole || "").trim().toLowerCase();
       localStorage.setItem("user", JSON.stringify({
         ...user,
         name: user.name || [user.first_name, user.last_name].filter(Boolean).join(" "),
         first_name: user.first_name || user.name || "",
         last_name: user.last_name || "",
-        role: String(user.role || user.user_role || user.userRole || "").trim().toLowerCase(),
+        role: normalizedRole,
         shop_id: resolvedShopId,
       }));
       localStorage.setItem("shopId", resolvedShopId);
@@ -84,7 +85,7 @@ export default function Home() {
         return;
       }
 
-      router.push(getPostLoginRoute(user.role));
+      router.replace(getPostLoginRoute(normalizedRole));
     } catch (error) {
       console.error("Login error:", error);
       showAlert("Unable to log in. Please try again.", { variant: "error", title: "Login Failed" });
