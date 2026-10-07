@@ -81,7 +81,6 @@ export default function Form() {
                 localStorage.setItem("shopColor", theme.accentColor);
             }
 
-            await Fetch_to(api_links.jwt.auth, { email: form.name });
             router.push(getPostLoginRoute(user?.role));
 
         } else {

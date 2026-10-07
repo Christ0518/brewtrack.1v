@@ -12,7 +12,6 @@
     "tbl_orders_details" : "services/supabase/tbl_orders_details",
     "jwt": {
         "verify": "/services/jwt/verify",
-        "deauth": "/services/jwt/deauth",
-        "auth": "/services/jwt/auth"
+        "deauth": "/services/jwt/deauth"
     }
 }

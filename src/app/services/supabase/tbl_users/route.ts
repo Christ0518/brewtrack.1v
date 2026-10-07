@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import bcrypt from "bcrypt";
 import { supabaseServer } from "@/lib/supabase";
+import { createSession } from "@/lib/session";
 
 type LoginPayload = {
   name?: string;
@@ -78,6 +79,8 @@ export async function POST(req: NextRequest) {
     if (!authenticatedUser) {
       return NextResponse.json({ success: false, message: "Wrong Password" }, { status: 403 });
     }
+
+    await createSession(authenticatedUser.name, req.nextUrl.protocol === "https:");
 
     return NextResponse.json(
       {

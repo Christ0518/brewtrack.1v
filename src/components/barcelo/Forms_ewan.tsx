@@ -25,7 +25,6 @@ export default function Form() {
 
         if(response.success) {
 
-            await Fetch_to(api_links.jwt.auth, { email: form.name });
             router.push("/dashboard");
 
         } else {
