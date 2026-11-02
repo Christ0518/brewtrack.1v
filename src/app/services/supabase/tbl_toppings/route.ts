@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     if (id) {
       const { data, error } = await supabaseServer
         .from("tbl_toppings")
-        .select("id, name, quantity, unit, price, unit_price, quantity_per_item, is_deleted")
+        .select("id, name, quantity, unit, price, unit_price, quantity_per_item, ingredient_id, is_deleted")
         .eq("id", id)
         .or("is_deleted.eq.0,is_deleted.is.null")
         .single();
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     // Get all add-ons
     const { data, error } = await supabaseServer
       .from("tbl_toppings")
-      .select("id, name, quantity, unit, price, unit_price, quantity_per_item, is_deleted")
+      .select("id, name, quantity, unit, price, unit_price, quantity_per_item, ingredient_id, is_deleted")
       .or("is_deleted.eq.0,is_deleted.is.null")
       .order("id", { ascending: false });
 
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, quantity, unit, price, unit_price, quantity_per_item } = body;
+    const { name, quantity, unit, price, unit_price, quantity_per_item, ingredient_id } = body;
 
     // Validation
     if (!name || quantity === undefined || !unit || price === undefined) {
@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
         price: parsedPrice,
         unit_price: parsedUnitPrice,
         quantity_per_item: parsedQuantityPerItem,
+        ingredient_id: ingredient_id ? Number(ingredient_id) : null,
       })
       .select("id")
       .single();
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, quantity, unit, price, unit_price, quantity_per_item } = body;
+    const { id, name, quantity, unit, price, unit_price, quantity_per_item, ingredient_id } = body;
 
     if (!id) {
       return NextResponse.json({ message: "Add-on ID is required" }, { status: 400 });
@@ -176,6 +177,7 @@ export async function PUT(req: NextRequest) {
         price: parsedPrice,
         unit_price: parsedUnitPrice,
         quantity_per_item: parsedQuantityPerItem,
+        ingredient_id: ingredient_id ? Number(ingredient_id) : null,
       })
       .eq("id", id)
       .select();

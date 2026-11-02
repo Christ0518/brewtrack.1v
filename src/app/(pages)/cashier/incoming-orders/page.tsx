@@ -126,24 +126,24 @@ export default function IncomingOrdersPage() {
   }, [shopId]);
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] px-4 py-5 md:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <header className="flex flex-col gap-5 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[#FAF6F4] px-4 py-5 text-[#2D2626] md:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        <header className="flex flex-col gap-5 border-b border-[#E9DEDA] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <button
               type="button"
               onClick={() => router.push("/cashier")}
-              className="mb-5 inline-flex items-center gap-2 px-0 py-1 text-sm font-semibold text-slate-600 transition hover:text-slate-950"
+              className="mb-5 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-[#796E6B] transition hover:bg-[#ECE6E2] hover:text-[#2D2626]"
             >
               <FiArrowLeft size={16} /> Back to cashier
             </button>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">Cashier queue</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Incoming orders</h1>
-            <p className="mt-1 text-sm text-slate-500">Accept orders in the order they arrived.</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A65F58]">Cashier queue</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-[#2D2626]">Incoming orders</h1>
+            <p className="mt-1 text-sm text-[#796E6B]">Accept orders in the order they arrived.</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-slate-500">Waiting</span>
-            <span className="flex h-10 min-w-10 items-center justify-center bg-red-600 px-3 text-lg font-black text-white">
+            <span className="text-sm font-bold text-[#796E6B]">Waiting</span>
+            <span className="flex h-10 min-w-10 items-center justify-center rounded-xl bg-[#C98A84] px-3 text-lg font-black text-white shadow-sm">
               {orders.length}
             </span>
           </div>
@@ -151,34 +151,34 @@ export default function IncomingOrdersPage() {
 
         <div className="mt-6">
           {loading ? (
-            <div className="border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">Loading incoming orders...</div>
+            <div className="rounded-2xl border border-[#E9DEDA] bg-white p-8 text-center text-sm text-[#796E6B] shadow-sm">Loading incoming orders...</div>
           ) : error ? (
-            <div className="border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
+            <div className="rounded-2xl border border-[#E8C9C5] bg-[#F5E7E5] p-6 text-[#A65F58]">{error}</div>
           ) : orders.length === 0 ? (
-            <div className="border border-slate-200 bg-white px-6 py-16 text-center">
+            <div className="rounded-2xl border border-dashed border-[#E9DEDA] bg-white px-6 py-16 text-center shadow-sm">
               <FiPackage className="mx-auto mb-3 text-slate-300" size={38} />
-              <p className="font-bold text-slate-700">Queue is clear</p>
-              <p className="mt-1 text-sm text-slate-500">New customer orders will appear here.</p>
+              <p className="font-bold text-[#4D413E]">Queue is clear</p>
+              <p className="mt-1 text-sm text-[#796E6B]">New customer orders will appear here.</p>
             </div>
           ) : (
-            <div className="overflow-hidden border border-slate-200 bg-white shadow-sm">
+            <div className="grid gap-4 md:grid-cols-2">
               {orders.map((order, orderIndex) => (
                 <article
                   key={order.id}
-                  className={`border-l-4 p-5 transition sm:p-6 ${
-                    isRecentOrder(order.created_at) ? "border-red-500 bg-red-50/40" : "border-transparent"
-                  } ${orderIndex > 0 ? "border-t border-slate-200" : ""}`}
+                  className={`rounded-2xl border border-[#E9DEDA] bg-white p-5 shadow-sm transition hover:shadow-md sm:p-6 ${
+                    isRecentOrder(order.created_at) ? "border-[#C98A84] bg-[#FBF2F0]" : ""
+                  }`}
                 >
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="text-xs font-black text-slate-400">#{orderIndex + 1}</span>
-                        <p className="text-xl font-black text-slate-950">{order.order_number}</p>
+                        <p className="text-xl font-black text-[#2D2626]">{order.order_number}</p>
                         {isRecentOrder(order.created_at) && (
-                          <span className="bg-red-600 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">New</span>
+                          <span className="rounded-lg bg-[#C98A84] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">New</span>
                         )}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#796E6B]">
                         <span>{order.customer_name}</span>
                         <span className="text-slate-300">|</span>
                         <span>{order.created_at ? new Date(order.created_at).toLocaleString() : ""}</span>
@@ -186,18 +186,18 @@ export default function IncomingOrdersPage() {
                       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
                         {order.items.map((item, idx) => (
                           <div key={idx} className="text-sm text-slate-700">
-                            <span className="font-black text-slate-950">{item.quantity}x</span> {item.product_name}
-                            {item.variant_name && <span className="text-slate-500"> · {item.variant_name}</span>}
+                            <span className="font-black text-[#2D2626]">{item.quantity}x</span> {item.product_name}
+                            {item.variant_name && <span className="text-[#796E6B]"> · {item.variant_name}</span>}
                           </div>
                         ))}
                       </div>
-                      {order.notes && <p className="mt-3 border-l-2 border-amber-400 pl-3 text-sm text-slate-600">{order.notes}</p>}
+                      {order.notes && <p className="mt-3 rounded-xl bg-[#ECE6E2] px-3 py-2 text-sm text-[#796E6B]">{order.notes}</p>}
                     </div>
                     <button
                       type="button"
                       onClick={() => handleAcceptOrder(order.id)}
                       disabled={acceptingOrderId === order.id}
-                      className="shrink-0 bg-[#16834b] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#116b3d] disabled:cursor-not-allowed disabled:bg-slate-300"
+                      className="shrink-0 rounded-xl bg-[#C98A84] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#B97872] disabled:cursor-not-allowed disabled:bg-[#D8CCC8]"
                     >
                       {acceptingOrderId === order.id ? "Accepting..." : "Accept to Kitchen"}
                     </button>

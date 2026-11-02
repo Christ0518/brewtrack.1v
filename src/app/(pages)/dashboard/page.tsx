@@ -3,16 +3,27 @@
 import {Fetch_to} from "@/utilities";
 import { useEffect, useMemo, useState } from "react";
 import {useRouter} from "next/navigation";
+import Link from "next/link";
 import api_links from "@/config/fetch_links/api_links.json";
 import Sidebar from "@/components/sidebar";
-import { getShopTheme } from "@/lib/theme";
+import {
+    FiAlertCircle,
+    FiArrowUpRight,
+    FiBarChart2,
+    FiBox,
+    FiCheckCircle,
+    FiClock,
+    FiCoffee,
+    FiDollarSign,
+    FiLayers,
+    FiShoppingBag,
+} from "react-icons/fi";
 
 
 export default function Dashboard() {
     const router = useRouter();
     const [shopName, setShopName] = useState("Shop");
     const [shopId, setShopId] = useState("1");
-    const [shopColor, setShopColor] = useState("#6c3030");
     const [orders, setOrders] = useState<any[]>([]);
     const [cashflow, setCashflow] = useState<any[]>([]);
     const [ingredients, setIngredients] = useState<any[]>([]);
@@ -30,11 +41,9 @@ export default function Dashboard() {
     useEffect(() => {
         const storedShopName = localStorage.getItem("shopName");
         const storedShopId = localStorage.getItem("shopId") || "1";
-        const storedShopColor = localStorage.getItem("shopColor");
 
         if (storedShopName) setShopName(storedShopName);
         setShopId(storedShopId);
-        setShopColor(storedShopId === "1" ? getShopTheme(storedShopId).accentColor : storedShopColor || getShopTheme(storedShopId).accentColor);
     }, []);
 
     useEffect(() => {
@@ -121,12 +130,6 @@ export default function Dashboard() {
         return Math.round((healthy / ingredients.length) * 100);
     }, [ingredients, lowStockCount]);
 
-    const cashflowCount = useMemo(() => cashflow.length, [cashflow]);
-    const totalCashflow = useMemo(
-        () => cashflow.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
-        [cashflow]
-    );
-
     const statusCounts = useMemo(() => {
         const counts = { pending: 0, preparing: 0, completed: 0, cancelled: 0, other: 0 };
         orders.forEach((order) => {
@@ -168,7 +171,9 @@ export default function Dashboard() {
     const topSellingProducts = useMemo(() => {
         const products = new Map<string, { product: string; variant: string; quantity: number; revenue: number }>();
 
-        orders.forEach((order) => {
+        orders
+            .filter((order) => String(order.status || "").toLowerCase() === "completed")
+            .forEach((order) => {
             (order.items || []).forEach((item: any) => {
                 const productName = item.product_name || "Unknown";
                 const variantName = item.variant_name || "Default";
@@ -183,7 +188,7 @@ export default function Dashboard() {
                 current.quantity += Number(item.quantity || 0);
                 current.revenue += Number(item.subtotal || 0);
                 products.set(key, current);
-            });
+                });
         });
 
         return Array.from(products.values())
@@ -206,227 +211,222 @@ export default function Dashboard() {
     }, []);
 
     return (
-        <div className="flex h-screen bg-cream">
-            {/* Sidebar */}
+        <div className="flex min-h-screen bg-[#FAF6F4] text-[#2D2626]" aria-busy={loading}>
             <Sidebar />
+            <main className="min-h-screen min-w-0 flex-1 px-4 pb-8 pt-20 sm:px-6 lg:px-8 lg:py-8">
+                <div className="mx-auto max-w-[1600px] space-y-7">
+                    <header className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                        <div>
+                            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#9B7773]">Point of sale · Overview</p>
+                            <h1 className="text-3xl font-bold tracking-tight text-[#2D2626] sm:text-4xl">Good day, {shopName}</h1>
+                            <p className="mt-2 text-sm text-[#796E6B] sm:text-base">Here’s what’s happening in your shop today.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="rounded-2xl border border-[#E9DFDB] bg-white/80 px-4 py-3 shadow-sm">
+                                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9B8883]">Today</p>
+                                <p className="mt-1 text-sm font-semibold text-[#2D2626]">{todayLabel || "Loading date…"}</p>
+                            </div>
 
-            {/* Main Content */}
-            <div className="flex-1 overflow-auto">
-                <div className="p-6">
-                    
+                        </div>
+                    </header>
 
-                    <div className="rounded-3xl border border-beige bg-white p-6 mb-8 shadow-sm">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <section aria-label="Today's key metrics" className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-[#796E6B]">Sales today</p>
+                                    <p className="mt-3 text-3xl font-bold tracking-tight text-[#2D2626]">{formatMoney(todayRevenue)}</p>
+                                </div>
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F8EDEA] text-[#B97973]"><FiDollarSign aria-hidden="true" className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-xs text-[#968984]">Completed orders only</p>
+                        </article>
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-[#796E6B]">Completed orders</p>
+                                    <p className="mt-3 text-3xl font-bold tracking-tight text-[#2D2626]">{todayCompletedOrdersCount}</p>
+                                </div>
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF3EC] text-[#5E8B68]"><FiCheckCircle aria-hidden="true" className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-xs text-[#968984]">Today</p>
+                        </article>
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-[#796E6B]">Pending orders</p>
+                                    <p className="mt-3 text-3xl font-bold tracking-tight text-[#2D2626]">{pendingOrdersCount}</p>
+                                </div>
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FBF1DF] text-[#B1843F]"><FiClock aria-hidden="true" className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-xs text-[#968984]">Need attention</p>
+                        </article>
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-[#796E6B]">Low stock</p>
+                                    <p className="mt-3 text-3xl font-bold tracking-tight text-[#2D2626]">{lowStockCount}</p>
+                                </div>
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F8EDEA] text-[#B97973]"><FiAlertCircle aria-hidden="true" className="h-5 w-5" /></span>
+                            </div>
+                            <p className="mt-3 text-xs text-[#968984]">Ingredients at 5 or less</p>
+                        </article>
+                    </section>
+
+                    <section aria-label="Quick actions">
+                        <div className="mb-3 flex items-center justify-between">
                             <div>
-                                <p className="text-sm uppercase tracking-[0.24em] text-primary mb-2">Welcome back</p>
-                                <h2 className="text-3xl font-bold text-primary">Hello, {shopName} !</h2>
-                                <p className="mt-3 max-w-2xl text-primary">Here is your latest store overview with inventory health, top sales, and order performance.</p>
-                            </div>
-                            <div className="rounded-3xl bg-cream p-4 text-primary">
-                                <p className="text-xs uppercase tracking-[0.24em] text-[#6e5338]">Today</p>
-                                <p className="mt-2 text-lg font-semibold">{todayLabel || "Loading..."}</p>
+                                <h2 className="text-lg font-bold text-[#2D2626]">Quick actions</h2>
+                                <p className="mt-0.5 text-sm text-[#8A7C78]">Jump back into your daily workflow.</p>
                             </div>
                         </div>
-                    </div>
+                        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                            {[
+                                { label: "Product catalog", detail: "Manage menu items", href: "/dashboard/products", icon: FiCoffee, tint: "bg-[#F8EDEA] text-[#B97973]" },
+                                { label: "Ingredients", detail: "Check stock levels", href: "/dashboard/ingredients", icon: FiLayers, tint: "bg-[#F1EAE4] text-[#8C6F5C]" },
+                                { label: "Sales reports", detail: "Review performance", href: "/dashboard/reports", icon: FiBarChart2, tint: "bg-[#EAF3EC] text-[#5E8B68]" },
+                                { label: "Transactions", detail: "View recent orders", href: "/dashboard/transactions", icon: FiBox, tint: "bg-[#FBF1DF] text-[#B1843F]" },
+                            ].map((action) => (
+                                <Link
+                                    key={action.label}
+                                    href={action.href}
+                                    className="group flex min-h-[92px] items-center gap-3 rounded-2xl border border-[#E9DFDB] bg-[#ECE6E2] p-4 transition hover:-translate-y-0.5 hover:border-[#D6B4AE] hover:bg-white hover:shadow-[0_12px_28px_rgba(69,47,39,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84] sm:gap-4 sm:p-5"
+                                >
+                                    <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${action.tint}`}><action.icon aria-hidden="true" className="h-5 w-5" /></span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-bold text-[#382F2D]">{action.label}</span>
+                                        <span className="mt-1 block truncate text-xs text-[#8A7C78]">{action.detail}</span>
+                                    </span>
+                                    <FiArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0 text-[#AE9690] transition group-hover:text-[#B97973]" />
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
 
-                    {/* Data Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-                        <div className="rounded-3xl p-5 shadow-lg bg-sales">
-                            <p className="text-sm uppercase tracking-[0.2em] opacity-80">Sales</p>
-                            <p className="mt-4 text-3xl font-black">{formatMoney(todayRevenue)}</p>
-                            <p className="mt-3 text-xs opacity-80">Today</p>
-                        </div>
-                        <div className="rounded-3xl p-5 shadow-lg bg-sales">
-                            <p className="text-sm uppercase tracking-[0.2em] opacity-80">Completed Orders</p>
-                            <p className="mt-4 text-3xl font-black">{todayCompletedOrdersCount}</p>
-                            <p className="mt-3 text-xs opacity-80">Today</p>
-                        </div>
-                        <div className="rounded-3xl p-5 shadow-lg bg-lowstock">
-                            <p className="text-sm uppercase tracking-[0.2em] opacity-80">Low Stock</p>
-                            <p className="mt-4 text-3xl font-black">{lowStockCount}</p>
-                            <p className="mt-3 text-xs opacity-80">Items ≤ 5 qty</p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-8">
-                        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                            <div className="flex items-center justify-between gap-4">
+                    <section aria-label="Business performance" className="grid grid-cols-1 gap-5 2xl:grid-cols-3">
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6 2xl:col-span-2">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-slate-900">Sales trend</h2>
-                                    <p className="text-sm text-slate-500">Last 7 days</p>
+                                    <h2 className="text-lg font-bold text-[#2D2626]">Sales trend</h2>
+                                    <p className="mt-1 text-sm text-[#8A7C78]">Revenue over the last 7 days</p>
                                 </div>
-                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                    {formatMoney(weeklyTrend.reduce((sum, day) => sum + day.total, 0))}
-                                </span>
-                            </div>
-                            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-primary">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-tan" /> Revenue
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Orders
-                                </span>
-                            </div>
-                            <p className="mt-4 text-sm text-primary">Daily revenue and order volume for the past week. The line shows revenue changes over time and points show each day's sales.</p>
-                            <div className="mt-4 rounded-3xl bg-[#f8f1e8] p-4">
-                                <div className="relative h-40">
-                                    <svg viewBox="0 0 320 160" className="h-full w-full">
-                                        <defs>
-                                            <linearGradient id="trendGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                                <stop offset="0%" stopColor="#bc9b7a" stopOpacity="0.9" />
-                                                <stop offset="100%" stopColor="#bc9b7a" stopOpacity="0.1" />
-                                            </linearGradient>
-                                        </defs>
-                                        <path
-                                            d={(() => {
-                                                const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
-                                                const chartWidth = 320;
-                                                const chartHeight = 120;
-                                                const points = weeklyTrend.map((day, index) => {
-                                                    const x = index * (chartWidth / Math.max(weeklyTrend.length - 1, 1));
-                                                    const y = chartHeight - (day.total / maxTotal) * chartHeight + 20;
-                                                    return { x, y };
-                                                });
-                                                return points.reduce(
-                                                    (path, point, index) =>
-                                                        index === 0
-                                                            ? `M ${point.x} ${point.y}`
-                                                            : `${path} L ${point.x} ${point.y}`,
-                                                    ""
-                                                );
-                                            })()}
-                                            fill="none"
-                                            stroke="#6c3030"
-                                            strokeWidth="3"
-                                            strokeLinejoin="round"
-                                            strokeLinecap="round"
-                                        />
-                                        {weeklyTrend.map((day, index) => {
-                                            const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
-                                            const chartWidth = 320;
-                                            const chartHeight = 120;
-                                            const x = index * (chartWidth / Math.max(weeklyTrend.length - 1, 1));
-                                            const y = chartHeight - (day.total / maxTotal) * chartHeight + 20;
-                                            return (
-                                                <g key={day.label}>
-                                                    <circle cx={x} cy={y} r="4" fill="#6c3030" />
-                                                    <circle cx={x} cy={y} r="10" fill="transparent" />
-                                                </g>
-                                            );
-                                        })}
-                                        <path
-                                            d={(() => {
-                                                const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
-                                                const chartWidth = 320;
-                                                const chartHeight = 120;
-                                                const points = weeklyTrend.map((day, index) => {
-                                                    const x = index * (chartWidth / Math.max(weeklyTrend.length - 1, 1));
-                                                    const y = chartHeight - (day.total / maxTotal) * chartHeight + 20;
-                                                    return `${x},${y}`;
-                                                });
-                                                return `M0,160 L${points.join(" L ")} L320,160 Z`;
-                                            })()}
-                                            fill="url(#trendGradient)"
-                                            opacity="0.4"
-                                        />
-                                    </svg>
+                                <div className="rounded-xl bg-[#F5EFEC] px-4 py-2 text-right">
+                                    <p className="text-xs font-medium text-[#8A7C78]">7-day total</p>
+                                    <p className="mt-0.5 text-base font-bold text-[#2D2626]">{formatMoney(weeklyTrend.reduce((sum, day) => sum + day.total, 0))}</p>
                                 </div>
-                                <div className="mt-4 grid grid-cols-7 gap-2 text-[10px] text-primary">
-                                    {weeklyTrend.map((day) => (
-                                        <div key={day.label} className="text-center">
-                                            <div>{day.label}</div>
-                                            <div>{day.count} orders</div>
+                            </div>
+                            <div className="mt-7 grid h-52 grid-cols-7 items-end gap-2 sm:gap-4" role="img" aria-label="Bar chart of daily revenue for the past seven days">
+                                {weeklyTrend.map((day) => {
+                                    const maxTotal = Math.max(...weeklyTrend.map((trendDay) => trendDay.total), 1);
+                                    const barHeight = day.total > 0 ? Math.max((day.total / maxTotal) * 100, 6) : 3;
+                                    return (
+                                        <div key={day.label} className="flex h-full min-w-0 flex-col items-center justify-end gap-2">
+                                            <span className="text-[11px] font-medium text-[#968984] sm:text-xs">{day.count}</span>
+                                            <div className="flex h-36 w-full items-end rounded-lg bg-[#F5EFEC]">
+                                                <div className="w-full rounded-lg bg-[#C98A84] transition-[height] duration-300" style={{ height: `${barHeight}%` }} title={`${day.label}: ${formatMoney(day.total)} · ${day.count} orders`} />
+                                            </div>
+                                            <span className="text-xs font-medium text-[#796E6B]">{day.label}</span>
                                         </div>
-                                    ))}
-                                </div>
+                                    );
+                                })}
                             </div>
-                        </div>
+                            <p className="mt-4 text-xs text-[#968984]">Order count shown above each bar.</p>
+                        </article>
 
-                        <div className="rounded-3xl border border-beige bg-white p-6 shadow-sm">
-                            <div className="flex items-center justify-between gap-4">
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-primary">Order status</h2>
-                                    <p className="text-sm text-primary">Current breakdown</p>
+                                    <h2 className="text-lg font-bold text-[#2D2626]">Order status</h2>
+                                    <p className="mt-1 text-sm text-[#8A7C78]">Current breakdown</p>
                                 </div>
-                                <span className="rounded-full chip-bg px-3 py-1 text-xs font-semibold text-primary">{orders.length} total</span>
+                                <span className="rounded-full bg-[#F5EFEC] px-3 py-1 text-sm font-semibold text-[#75615C]">{orders.length} total</span>
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-2 text-xs text-primary">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-tan" /> Pending / open
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Preparing
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-deep" /> Completed
-                                </span>
-                                <span className="inline-flex items-center gap-2 rounded-full border border-beige bg-pale px-3 py-1">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-deep" /> Cancelled
-                                </span>
-                            </div>
-                            <p className="mt-4 text-sm text-primary">This chart shows where orders currently stand, from pending to preparing to completed and cancelled.</p>
-                            <div className="mt-6 space-y-4">
+                            <div className="mt-7 space-y-5">
                                 {Object.entries(statusCounts).map(([key, value]) => (
-                                    <div key={key} className="space-y-2">
-                                        <div className="flex items-center justify-between text-sm text-primary"><span>{key.charAt(0).toUpperCase() + key.slice(1)}</span><span>{value}</span></div>
-                                        <div className="h-3 rounded-full bg-pale">
-                                            <div className={`h-3 rounded-full ${key === 'completed' ? 'bg-deep' : key === 'cancelled' ? 'bg-deep' : key === 'preparing' ? 'bg-primary' : 'bg-tan'}`} style={{ width: `${orders.length ? (value / orders.length) * 100 : 0}%` }}></div>
+                                    <div key={key}>
+                                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                                            <span className="font-medium capitalize text-[#796E6B]">{key}</span>
+                                            <span className="font-semibold tabular-nums text-[#2D2626]">{value}</span>
+                                        </div>
+                                        <div className="h-2.5 overflow-hidden rounded-full bg-[#F0E9E6]" role="progressbar" aria-label={`${key} orders`} aria-valuemin={0} aria-valuemax={orders.length} aria-valuenow={value}>
+                                            <div
+                                                className={`h-full rounded-full ${key === "completed" ? "bg-[#78A184]" : key === "cancelled" ? "bg-[#B9AAA5]" : key === "preparing" ? "bg-[#C98A84]" : "bg-[#D4AC68]"}`}
+                                                style={{ width: `${orders.length ? (value / orders.length) * 100 : 0}%` }}
+                                            />
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </article>
+                    </section>
 
-                        <div className="rounded-3xl border border-beige bg-white p-6 shadow-sm">
-                            <div className="flex items-center justify-between gap-4">
+                    <section aria-label="Product and inventory details" className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-primary">Top Sales</h2>
-                                    <p className="text-sm text-primary">Best-selling products</p>
+                                    <h2 className="text-lg font-bold text-[#2D2626]">Top-selling products</h2>
+                                    <p className="mt-1 text-sm text-[#8A7C78]">Ranked by revenue</p>
                                 </div>
-                                <span className="rounded-full chip-bg px-3 py-1 text-xs font-semibold text-primary">{topSellingProducts.length} items</span>
+                                <span className="rounded-full bg-[#F5EFEC] px-3 py-1 text-sm font-semibold text-[#75615C]">{topSellingProducts.length} items</span>
                             </div>
-                            <div className="mt-6 space-y-4 text-sm text-[#6e5338]">
-                                {topSellingProducts.length > 0 ? (
-                                    topSellingProducts.map((item) => (
-                                        <div key={`${item.product}-${item.variant}`} className="flex items-center justify-between gap-4">
-                                            <div className="min-w-0">
-                                                <p className="truncate text-slate-900 font-semibold">{item.product}</p>
-                                                <p className="text-xs text-slate-500">{item.variant}</p>
+                            {topSellingProducts.length > 0 ? (
+                                <ul className="mt-5 divide-y divide-[#F0E9E6]">
+                                    {topSellingProducts.map((item, index) => (
+                                        <li key={`${item.product}-${item.variant}`} className="flex min-h-16 items-center justify-between gap-4 py-3">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F8EDEA] text-sm font-bold text-[#B97973]">{index + 1}</span>
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-semibold text-[#382F2D]">{item.product}</p>
+                                                    <p className="truncate text-sm text-[#8A7C78]">{item.variant}</p>
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-semibold text-slate-900">{item.quantity} sold</p>
-                                                <p className="text-xs text-slate-500">{formatMoney(item.revenue)}</p>
+                                            <div className="shrink-0 text-right">
+                                                <p className="font-semibold text-[#382F2D]">{item.quantity} sold</p>
+                                                <p className="text-sm text-[#8A7C78]">{formatMoney(item.revenue)}</p>
                                             </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-sm text-slate-500">No sales data available yet.</p>
-                                )}
-                            </div>
-                        </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="mt-5 rounded-xl bg-[#F8F4F2] px-4 py-6 text-sm text-[#8A7C78]">Sales data will appear here once orders are placed.</p>
+                            )}
+                        </article>
 
-                            <div className="rounded-3xl border border-beige bg-white p-6 shadow-sm">
-                            <div className="flex items-center justify-between gap-4">
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
+                            <div className="flex items-start justify-between gap-4">
                                 <div>
-                                    <h2 className="text-base font-semibold text-primary">Inventory health</h2>
-                                    <p className="text-sm text-primary">Low stock items</p>
+                                    <h2 className="text-lg font-bold text-[#2D2626]">Inventory health</h2>
+                                    <p className="mt-1 text-sm text-[#8A7C78]">Ingredients needing attention</p>
                                 </div>
-                                <span className="rounded-full chip-bg px-3 py-1 text-xs font-semibold text-primary">{lowStockCount} low</span>
+                                <span className={`rounded-full px-3 py-1 text-sm font-semibold ${lowStockCount ? "bg-[#F8EDEA] text-[#A76560]" : "bg-[#EAF3EC] text-[#527B5B]"}`}>
+                                    {lowStockCount ? `${lowStockCount} low` : "All stocked"}
+                                </span>
                             </div>
-                            <div className="mt-6 space-y-4 text-sm text-[#6e5338]">
-                                {topLowStockItems.map((item) => (
-                                    <div key={item.id}>
-                                        <div className="flex justify-between mb-2"><span>{item.ingredient_name || item.name || "Item"}</span><span>{Number(item.quantity || 0)}</span></div>
-                                        <div className="h-3 rounded-full bg-pale"><div className="h-3 rounded-full bg-deep" style={{ width: `${Math.min(100, (Number(item.quantity || 0) / 10) * 100)}%` }}></div></div>
-                                    </div>
-                                ))}
+                            <div className="mt-5">
+                                <div className="mb-2 flex items-center justify-between text-sm">
+                                    <span className="font-medium text-[#796E6B]">Healthy stock</span>
+                                    <span className="font-semibold text-[#2D2626]">{stockHealthPercent}%</span>
+                                </div>
+                                <div className="h-2.5 overflow-hidden rounded-full bg-[#F0E9E6]" role="progressbar" aria-label="Healthy stock" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stockHealthPercent}>
+                                    <div className="h-full rounded-full bg-[#78A184]" style={{ width: `${stockHealthPercent}%` }} />
+                                </div>
                             </div>
-                        </div>
-                    </div>
-
-                    
+                            {topLowStockItems.length > 0 ? (
+                                <ul className="mt-5 divide-y divide-[#F0E9E6]">
+                                    {topLowStockItems.map((item) => (
+                                        <li key={item.id} className="flex min-h-14 items-center justify-between gap-4 py-3">
+                                            <span className="min-w-0 truncate font-medium text-[#796E6B]">{item.ingredient_name || item.name || "Item"}</span>
+                                            <span className="shrink-0 rounded-lg bg-[#F8EDEA] px-3 py-1.5 text-sm font-semibold tabular-nums text-[#A76560]">{Number(item.quantity || 0)} left</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="mt-5 rounded-xl bg-[#F8F4F2] px-4 py-6 text-sm text-[#8A7C78]">No low-stock ingredients to show.</p>
+                            )}
+                        </article>
+                    </section>
                 </div>
-            </div>
+            </main>
         </div>
     );
 }

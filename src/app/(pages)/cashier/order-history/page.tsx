@@ -158,52 +158,52 @@ export default function OrderHistoryPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#f4f6f8] px-4 py-5 md:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <header className="flex flex-col gap-5 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[#FAF6F4] px-4 py-5 text-[#2D2626] md:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        <header className="flex flex-col gap-5 border-b border-[#E9DEDA] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <button type="button" onClick={() => router.push("/cashier")} className="mb-5 inline-flex items-center gap-2 px-0 py-1 text-sm font-semibold text-slate-600 hover:text-slate-950">
+            <button type="button" onClick={() => router.push("/cashier")}             className="mb-5 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-[#796E6B] hover:bg-[#ECE6E2] hover:text-[#2D2626]">
               <FiArrowLeft size={16} /> Back to cashier
             </button>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Cashier records</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">Order history</h1>
-            <p className="mt-1 text-sm text-slate-500">Edit or delete records with admin authorization.</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A65F58]">Cashier records</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-[#2D2626]">Order history</h1>
+            <p className="mt-1 text-sm text-[#796E6B]">Edit or delete records with admin authorization.</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-black text-slate-950">{orders.length}</p>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Total orders</p>
+            <p className="text-2xl font-black text-[#2D2626]">{orders.length}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#B7A8A3]">Total orders</p>
           </div>
         </header>
 
         <div className="mt-6 flex items-center gap-3">
           <div className="relative flex-1">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number or customer..." className="w-full border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm outline-none focus:border-blue-600" />
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[#B7A8A3]" size={17} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order number or customer..." className="w-full rounded-xl border border-[#E9DEDA] bg-white py-3 pl-10 pr-3 text-sm outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20" />
           </div>
         </div>
 
-        {error && <p className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 rounded-xl border border-[#E8C9C5] bg-[#F5E7E5] p-3 text-sm text-[#A65F58]">{error}</p>}
 
-        <div className="mt-5 overflow-hidden border border-slate-200 bg-white shadow-sm">
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
           {loading ? (
-            <p className="p-8 text-center text-sm text-slate-500">Loading order history...</p>
+            <p className="rounded-2xl border border-[#E9DEDA] bg-white p-8 text-center text-sm text-[#796E6B] shadow-sm">Loading order history...</p>
           ) : filteredOrders.length === 0 ? (
-            <p className="p-10 text-center text-sm text-slate-500">No orders found.</p>
+            <p className="rounded-2xl border border-dashed border-[#E9DEDA] bg-white p-10 text-center text-sm text-[#796E6B] shadow-sm">No orders found.</p>
           ) : filteredOrders.map((order, index) => (
-            <article key={order.id} className={`p-4 sm:p-5 ${index > 0 ? "border-t border-slate-200" : ""}`}>
+            <article key={order.id} className="rounded-2xl border border-[#E9DEDA] bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-lg font-black text-slate-950">{order.order_number || `Order #${order.id}`}</h2>
-                    <span className="bg-slate-100 px-2 py-1 text-xs font-bold capitalize text-slate-600">{order.status || "unknown"}</span>
+                    <h2 className="text-lg font-black text-[#2D2626]">{order.order_number || `Order #${order.id}`}</h2>
+                    <span className="rounded-lg bg-[#ECE6E2] px-2 py-1 text-xs font-bold capitalize text-[#796E6B]">{order.status || "unknown"}</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{order.customer_name || "Walk-in"} {order.created_at ? `· ${new Date(order.created_at).toLocaleString()}` : ""}</p>
-                  <p className="mt-3 text-sm text-slate-700">{order.items.map((item, itemIndex) => `${item.quantity}x ${item.product_name || "Item"}${item.variant_name ? ` (${item.variant_name})` : ""}`).join(" · ") || "No items"}</p>
-                  {order.notes && <p className="mt-2 border-l-2 border-amber-400 pl-3 text-sm text-slate-500">{order.notes}</p>}
+                  <p className="mt-1 text-sm text-[#796E6B]">{order.customer_name || "Walk-in"} {order.created_at ? `· ${new Date(order.created_at).toLocaleString()}` : ""}</p>
+                  <p className="mt-3 text-sm text-[#4D413E]">{order.items.map((item, itemIndex) => `${item.quantity}x ${item.product_name || "Item"}${item.variant_name ? ` (${item.variant_name})` : ""}`).join(" · ") || "No items"}</p>
+                  {order.notes && <p className="mt-2 rounded-xl bg-[#ECE6E2] px-3 py-2 text-sm text-[#796E6B]">{order.notes}</p>}
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <button type="button" onClick={() => openAction("edit", order)} className="inline-flex items-center gap-2 border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"><FiEdit2 size={15} /> Edit</button>
-                  <button type="button" onClick={() => openAction("delete", order)} className="inline-flex items-center gap-2 border border-red-200 px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50"><FiTrash2 size={15} /> Delete</button>
+                  <button type="button" onClick={() => openAction("edit", order)} className="inline-flex items-center gap-2 rounded-xl border border-[#E9DEDA] px-3 py-2 text-sm font-bold text-[#796E6B] transition hover:border-[#C98A84] hover:bg-[#FBF2F0]"><FiEdit2 size={15} /> Edit</button>
+                  <button type="button" onClick={() => openAction("delete", order)} className="inline-flex items-center gap-2 rounded-xl border border-[#E8C9C5] px-3 py-2 text-sm font-bold text-[#A65F58] transition hover:bg-[#F5E7E5]"><FiTrash2 size={15} /> Delete</button>
                 </div>
               </div>
             </article>
@@ -212,16 +212,16 @@ export default function OrderHistoryPage() {
       </div>
 
       {action && selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md border border-slate-200 bg-white p-6 shadow-xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">Admin authorization</p>
-            <h2 className="mt-1 text-xl font-black text-slate-950">{action === "edit" ? "Edit order" : "Delete order"}</h2>
-            <p className="mt-2 text-sm text-slate-500">Enter an admin password to continue.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#E9DEDA] bg-[#FAF6F4] p-6 shadow-xl">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A65F58]">Admin authorization</p>
+            <h2 className="mt-1 text-xl font-black text-[#2D2626]">{action === "edit" ? "Edit order" : "Delete order"}</h2>
+            <p className="mt-2 text-sm text-[#796E6B]">Enter an admin password to continue.</p>
 
             {action === "edit" && (
               <div className="mt-5 space-y-3">
-                <div className="border-y border-slate-200 py-3">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Order items</p>
+                <div className="rounded-xl border border-[#E9DEDA] bg-white px-3 py-2">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-[#B7A8A3]">Order items</p>
                   {editItems.map((item, itemIndex) => (
                     <div key={`${item.variant_id || item.product_name}-${itemIndex}`} className="flex items-center justify-between gap-3 py-2">
                       <div className="min-w-0 text-sm text-slate-700">
@@ -236,24 +236,24 @@ export default function OrderHistoryPage() {
                           const quantity = Math.max(0, Number(event.target.value) || 0);
                           setEditItems((current) => current.map((currentItem, currentIndex) => currentIndex === itemIndex ? { ...currentItem, quantity } : currentItem));
                         }}
-                        className="w-20 border border-slate-300 px-2 py-2 text-center text-sm font-bold outline-none focus:border-blue-600"
+                        className="w-20 rounded-lg border border-[#E9DEDA] px-2 py-2 text-center text-sm font-bold outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20"
                         aria-label={`Quantity for ${item.product_name || "item"}`}
                       />
                     </div>
                   ))}
                 </div>
-                <input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Customer name" className="w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
-                <textarea value={editNotes} onChange={(event) => setEditNotes(event.target.value)} placeholder="Notes" rows={3} className="w-full resize-none border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
+                <input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Customer name" className="w-full rounded-xl border border-[#E9DEDA] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20" />
+                <textarea value={editNotes} onChange={(event) => setEditNotes(event.target.value)} placeholder="Notes" rows={3} className="w-full resize-none rounded-xl border border-[#E9DEDA] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20" />
               </div>
             )}
 
             <div className="mt-4 space-y-3">
-              <input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} placeholder="Admin password" autoComplete="current-password" className="w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-600" />
+              <input type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} placeholder="Admin password" autoComplete="current-password" className="w-full rounded-xl border border-[#E9DEDA] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20" />
             </div>
 
             <div className="mt-6 flex gap-2">
-              <button type="button" onClick={closeAction} disabled={submitting} className="flex-1 border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
-              <button type="button" onClick={submitAction} disabled={submitting || !adminPassword} className={`flex-1 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300 ${action === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-[#16834b] hover:bg-[#116b3d]"}`}>{submitting ? "Checking..." : action === "edit" ? "Save changes" : "Delete order"}</button>
+              <button type="button" onClick={closeAction} disabled={submitting} className="flex-1 rounded-xl border border-[#E9DEDA] px-4 py-2.5 text-sm font-bold text-[#796E6B] hover:bg-white">Cancel</button>
+              <button type="button" onClick={submitAction} disabled={submitting || !adminPassword} className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#D8CCC8] ${action === "delete" ? "bg-[#A65F58] hover:bg-[#8F4F49]" : "bg-[#C98A84] hover:bg-[#B97872]"}`}>{submitting ? "Checking..." : action === "edit" ? "Save changes" : "Delete order"}</button>
             </div>
           </div>
         </div>

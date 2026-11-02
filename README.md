@@ -16,6 +16,27 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Access from another device on the same Wi-Fi
+
+Start the development server on all network interfaces:
+
+```bash
+npm run dev:lan
+```
+
+On Windows, find this computer's local IPv4 address with:
+
+```powershell
+ipconfig
+```
+
+On another device connected to the same Wi-Fi, open `http://YOUR_IPV4_ADDRESS:3000`,
+for example `http://192.168.1.25:3000`.
+
+If Windows Firewall asks whether Node.js may communicate on the network, allow it
+on private networks. Both devices must be on the same Wi-Fi network; guest Wi-Fi
+or client isolation can prevent devices from reaching each other.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

@@ -88,7 +88,9 @@ export default function Home() {
         return;
       }
 
-      window.location.replace(getPostLoginRoute(normalizedRole));
+      const requestedPath = new URLSearchParams(window.location.search).get("next");
+      const nextPath = requestedPath && requestedPath.startsWith("/order/") ? requestedPath : getPostLoginRoute(normalizedRole);
+      window.location.replace(nextPath);
     } catch (error) {
       console.error("Login error:", error);
       showAlert("Unable to log in. Please try again.", { variant: "error", title: "Login Failed" });
@@ -98,17 +100,19 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen w-full items-center justify-center bg-[#f8f1e8] px-4">
+    <main className="flex min-h-screen w-full items-center justify-center bg-[#FAF6F4] px-4 py-8">
       <AlertModal />
-      <section className="w-full max-w-md rounded-lg border border-[#d6c3af] bg-white p-6 shadow-xl sm:p-8">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-[#6c3030]">BrewTrack Login</h1>
-          <p className="mt-1 text-sm text-[#8a6245]">Sign in to continue to your workspace</p>
+      <section className="w-full max-w-md rounded-3xl border border-[#E9DEDA] bg-white p-6 shadow-[0_20px_60px_rgba(81,55,48,0.12)] sm:p-9">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#ECE6E2] text-2xl font-black text-[#C98A84] shadow-sm">B</div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#A65F58]">BrewTrack</p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight text-[#2D2626]">Welcome back</h1>
+          <p className="mt-2 text-sm text-[#796E6B]">Sign in to continue to your workspace</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="mb-1 block text-sm font-medium text-[#6e5338]">Username</label>
+            <label htmlFor="name" className="mb-1 block text-sm font-bold text-[#4D413E]">Username</label>
             <input
               id="name"
               type="text"
@@ -116,12 +120,12 @@ export default function Home() {
               onChange={(event) => setName(event.target.value)}
               autoComplete="username"
               placeholder="Enter your username"
-              className="w-full rounded-lg border border-[#d6c3af] px-4 py-2.5 text-[#6c3030] outline-none focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
+              className="w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-4 py-3 text-[#2D2626] outline-none focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
               required
             />
           </div>
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-[#6e5338]">Password</label>
+            <label htmlFor="password" className="mb-1 block text-sm font-bold text-[#4D413E]">Password</label>
             <input
               id="password"
               type="password"
@@ -129,14 +133,14 @@ export default function Home() {
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
               placeholder="Enter your password"
-              className="w-full rounded-lg border border-[#d6c3af] px-4 py-2.5 text-[#6c3030] outline-none focus:border-[#6c3030] focus:ring-2 focus:ring-[#ead8c5]"
+              className="w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-4 py-3 text-[#2D2626] outline-none focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
               required
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-[#6c3030] px-4 py-2.5 font-semibold text-white transition-colors hover:bg-[#522424] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-[#C98A84] px-4 py-3 font-black text-white shadow-sm transition-colors hover:bg-[#B97872] disabled:cursor-not-allowed disabled:bg-[#D8CCC8]"
           >
             {loading ? "Signing in..." : "Log In"}
           </button>

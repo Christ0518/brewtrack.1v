@@ -80,7 +80,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Wrong Password" }, { status: 403 });
     }
 
-    await createSession(authenticatedUser.name, req.nextUrl.protocol === "https:");
+    const forwardedProtocol = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+    const isSecureRequest = req.nextUrl.protocol === "https:" || forwardedProtocol === "https";
+    await createSession(authenticatedUser.name, isSecureRequest);
 
     return NextResponse.json(
       {

@@ -3,10 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/sidebar";
 import api_links from "@/config/fetch_links/api_links.json";
-import { FiEdit, FiTrash2, FiLock, FiUser, FiUserPlus, FiX, FiCheck, FiRefreshCw } from "react-icons/fi";
+import {
+	FiEdit,
+	FiTrash2,
+	FiLock,
+	FiUser,
+	FiUserPlus,
+	FiX,
+	FiCheck,
+	FiRefreshCw,
+	FiSearch,
+	FiUsers,
+	FiShield,
+} from "react-icons/fi";
 import { Fetch_to } from "@/utilities";
 import { useRouter } from "next/navigation";
-import { getShopTheme } from "@/lib/theme";
 
 type UserRole = "admin" | "cashier" | "kitchen";
 
@@ -45,11 +56,6 @@ type ModalState = {
 	message: string;
 };
 
-type PendingAdminAction = {
-	type: "create-user" | "edit-user" | "delete-user" | "change-password" | "forgot-password";
-	executor: (adminPassword: string) => Promise<void> | void;
-};
-
 const SHOP_LABELS: Record<string, string> = {
 	"1": "Barcelo",
 	"2": "Good Coffee",
@@ -83,8 +89,10 @@ const defaultForgotPasswordState: ForgotPasswordState = {
 export default function SettingsPage() {
 	const router = useRouter();
 	const [shopId, setShopId] = useState("1");
-	const [shopColor, setShopColor] = useState("#6c3030");
+	const [shopLogo, setShopLogo] = useState("");
 	const [users, setUsers] = useState<UserItem[]>([]);
+	const [searchTerm, setSearchTerm] = useState("");
+	const [roleFilter, setRoleFilter] = useState("all");
 	const [form, setForm] = useState<UserFormState>(defaultFormState);
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [passwordChange, setPasswordChange] = useState<PasswordState>(defaultPasswordState);
@@ -94,8 +102,6 @@ export default function SettingsPage() {
 	const [showForm, setShowForm] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
-	const [pendingAdminAction, setPendingAdminAction] = useState<PendingAdminAction | null>(null);
-	const [adminPasswordInput, setAdminPasswordInput] = useState("");
 	const [modal, setModal] = useState<ModalState>({
 		isOpen: false,
 		type: "info",
@@ -103,9 +109,8 @@ export default function SettingsPage() {
 		message: "",
 	});
 
-	const theme = useMemo(() => getShopTheme(shopId), [shopId]);
 	const shopLabel = SHOP_LABELS[shopId] || "Barcelo";
-	const accentInputClass = `w-full px-3 py-2.5 border border-[#d9c2ad] rounded-xl ${theme.accentRingClass} transition-all outline-none text-sm bg-[#fffdfb] text-[#35231d] placeholder:text-[#9b8278]`;
+	const accentInputClass = "w-full min-h-12 rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-3.5 py-2.5 text-sm text-[#2D2626] outline-none transition-all placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-4 focus:ring-[#C98A84]/20";
 
 	const showModal = (type: ModalState["type"], title: string, message: string) => {
 		setModal({ isOpen: true, type, title, message });
@@ -115,41 +120,14 @@ export default function SettingsPage() {
 		setModal((current) => ({ ...current, isOpen: false }));
 	};
 
-	const beginAdminConfirmation = (type: PendingAdminAction["type"], executor: PendingAdminAction["executor"]) => {
-		setPendingAdminAction({ type, executor });
-		setAdminPasswordInput("");
-	};
-
-	const cancelAdminConfirmation = () => {
-		setPendingAdminAction(null);
-		setAdminPasswordInput("");
-	};
-
-	const executePendingAction = async () => {
-		if (!pendingAdminAction) return;
-		if (!adminPasswordInput.trim()) {
-			showModal("warning", "Admin password required", "Please enter your admin password to continue.");
-			return;
-		}
-
-		setSubmitting(true);
-		try {
-			await pendingAdminAction.executor(adminPasswordInput.trim());
-		} finally {
-			cancelAdminConfirmation();
-			setSubmitting(false);
-		}
-	};
-
 	useEffect(() => {
 		const storedShopId = normalizeShopId(localStorage.getItem("shopId") || "1");
-		const storedShopColor = localStorage.getItem("shopColor");
-		const fallbackTheme = getShopTheme(storedShopId);
 
 		setShopId(storedShopId);
 		localStorage.setItem("shopId", storedShopId);
 		localStorage.setItem("shopName", SHOP_LABELS[storedShopId]);
-		setShopColor(storedShopColor || fallbackTheme.accentColor);
+		setShopLogo(localStorage.getItem("shopLogo") || "");
+		window.dispatchEvent(new Event("brewtrack-shop-updated"));
 	}, []);
 
 	useEffect(() => {
@@ -228,41 +206,43 @@ export default function SettingsPage() {
 						password: form.password,
 					};
 
-			beginAdminConfirmation(editingId ? "edit-user" : "create-user", async (adminPassword) => {
-				const result = await Fetch_to(
-					api_links.tbl_users_manage,
-					{ ...payload, admin_password: adminPassword },
-					{
-						"x-shop-id": shopId,
-						"Content-Type": "application/json",
-					},
-					1,
-					0,
-					method
-				);
+			setSubmitting(true);
+			const result = await Fetch_to(
+				api_links.tbl_users_manage,
+				payload,
+				{
+					"x-shop-id": shopId,
+					"Content-Type": "application/json",
+				},
+				1,
+				0,
+				method
+			);
 
-				if (!result.success) {
-					showModal("error", "Save Failed", result.message || "Error saving user.");
-					return;
-				}
+			if (!result.success) {
+				showModal("error", "Save Failed", result.message || "Error saving user.");
+				return;
+			}
 
-				showModal("success", "Saved", editingId ? "User updated successfully." : "User added successfully.");
-				cancelEdit();
-				await fetchUsers();
-			});
+			showModal("success", "Saved", editingId ? "User updated successfully." : "User added successfully.");
+			cancelEdit();
+			await fetchUsers();
 		} catch (error) {
 			console.error(error);
 			showModal("error", "Save Failed", error instanceof Error ? error.message : "Error saving user.");
+		} finally {
+			setSubmitting(false);
 		}
 	};
 
 	const handleDelete = async (id: number) => {
 		if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
 
-		beginAdminConfirmation("delete-user", async (adminPassword) => {
+		setSubmitting(true);
+		try {
 			const result = await Fetch_to(
 				`${api_links.tbl_users_manage}?id=${id}`,
-				{ admin_password: adminPassword },
+				{},
 				{
 					"x-shop-id": shopId,
 					"Content-Type": "application/json",
@@ -279,7 +259,12 @@ export default function SettingsPage() {
 
 			showModal("success", "Deleted", "User deleted successfully.");
 			await fetchUsers();
-		});
+		} catch (error) {
+			console.error(error);
+			showModal("error", "Delete Failed", error instanceof Error ? error.message : "Failed to delete user.");
+		} finally {
+			setSubmitting(false);
+		}
 	};
 
 	const handleChangePassword = async () => {
@@ -294,36 +279,36 @@ export default function SettingsPage() {
 				return;
 			}
 
-			beginAdminConfirmation("change-password", async (adminPassword) => {
-				const result = await Fetch_to(
-					api_links.tbl_users_manage,
-					{
-						id: passwordChange.id,
-						current_password: passwordChange.current_password,
-						new_password: passwordChange.new_password,
-						mode: "change",
-						admin_password: adminPassword,
-					},
-					{
-						"x-shop-id": shopId,
-						"Content-Type": "application/json",
-					},
-					1,
-					0,
-					"PATCH"
-				);
+			setSubmitting(true);
+			const result = await Fetch_to(
+				api_links.tbl_users_manage,
+				{
+					id: passwordChange.id,
+					current_password: passwordChange.current_password,
+					new_password: passwordChange.new_password,
+					mode: "change",
+				},
+				{
+					"x-shop-id": shopId,
+					"Content-Type": "application/json",
+				},
+				1,
+				0,
+				"PATCH"
+			);
 
-				if (!result.success) {
-					showModal("error", "Password Change Failed", result.message || "Failed to change password.");
-					return;
-				}
+			if (!result.success) {
+				showModal("error", "Password Change Failed", result.message || "Failed to change password.");
+				return;
+			}
 
-				showModal("success", "Password Updated", "Password changed successfully.");
-				closePasswordModal();
-			});
+			showModal("success", "Password Updated", "Password changed successfully.");
+			closePasswordModal();
 		} catch (error) {
 			console.error(error);
 			showModal("error", "Password Change Failed", error instanceof Error ? error.message : "Failed to change password.");
+		} finally {
+			setSubmitting(false);
 		}
 	};
 
@@ -345,35 +330,36 @@ export default function SettingsPage() {
 				return;
 			}
 
-			beginAdminConfirmation("forgot-password", async (adminPassword) => {
-				const result = await Fetch_to(
-					api_links.tbl_users_manage,
-					{
-						id: forgotPassword.id,
-						new_password: forgotPassword.new_password,
-						mode: "forgot",
-						admin_password: adminPassword,
-					},
-					{
-						"x-shop-id": shopId,
-						"Content-Type": "application/json",
-					},
-					1,
-					0,
-					"PATCH"
-				);
+			setSubmitting(true);
+			const result = await Fetch_to(
+				api_links.tbl_users_manage,
+				{
+					id: forgotPassword.id,
+					username: forgotPassword.username,
+					new_password: forgotPassword.new_password,
+					mode: "forgot",
+				},
+				{
+					"x-shop-id": shopId,
+					"Content-Type": "application/json",
+				},
+				1,
+				0,
+				"PATCH"
+			);
 
-				if (!result.success) {
-					showModal("error", "Reset Failed", result.message || "Failed to reset password.");
-					return;
-				}
+			if (!result.success) {
+				showModal("error", "Reset Failed", result.message || "Failed to reset password.");
+				return;
+			}
 
-				showModal("success", "Password Reset", "Forgot-password reset completed successfully.");
-				closeForgotPasswordModal();
-			});
+			showModal("success", "Password Reset", "Password reset successfully.");
+			closeForgotPasswordModal();
 		} catch (error) {
 			console.error(error);
 			showModal("error", "Reset Failed", error instanceof Error ? error.message : "Failed to reset password.");
+		} finally {
+			setSubmitting(false);
 		}
 	};
 
@@ -422,40 +408,66 @@ export default function SettingsPage() {
 	const getRoleBadgeColor = (role: string) => {
 		switch (role) {
 			case "admin":
-				return "bg-slate-200 text-slate-900";
+				return "bg-[#FBF2F0] text-[#A65F58] ring-[#E9DEDA]";
 			case "cashier":
-				return theme.accentSoftClass;
+				return "bg-[#E5F1E9] text-[#477259] ring-[#D5E7DA]";
 			case "kitchen":
-				return "bg-amber-100 text-amber-700";
+				return "bg-[#FFF3DD] text-[#9A6B25] ring-[#F1DFC0]";
 			default:
-				return "bg-slate-100 text-slate-700";
+				return "bg-[#ECE6E2] text-[#796E6B] ring-[#E9DEDA]";
 		}
 	};
 
+	const filteredUsers = useMemo(() => {
+		const normalizedSearch = searchTerm.trim().toLowerCase();
+		return users.filter((user) => {
+			const matchesRole = roleFilter === "all" || user.role === roleFilter;
+			const matchesSearch =
+				!normalizedSearch ||
+				`${user.first_name} ${user.last_name} ${user.name} ${user.role}`
+					.toLowerCase()
+					.includes(normalizedSearch);
+			return matchesRole && matchesSearch;
+		});
+	}, [roleFilter, searchTerm, users]);
+
+	const roleCounts = useMemo(
+		() => ({
+			all: users.length,
+			admin: users.filter((user) => user.role === "admin").length,
+			cashier: users.filter((user) => user.role === "cashier").length,
+			kitchen: users.filter((user) => user.role === "kitchen").length,
+		}),
+		[users]
+	);
+
 	return (
-		<div className="flex min-h-screen bg-[#f6f0eb]">
+		<div className="flex min-h-screen bg-[#FAF6F4] text-[#2D2626]">
 			<Sidebar />
 
-			<div className="flex-1 overflow-auto p-4 lg:p-6">
+			<div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
 				<div className="max-w-7xl mx-auto">
-					<div className="mb-6">
-						<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+					<div className="mb-7">
+						<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
 							<div>
-								<h1 className="text-2xl lg:text-3xl font-bold text-[#35231d] flex items-center gap-3 tracking-tight">
-									<div className="p-2.5 rounded-xl shadow-sm" style={{ backgroundColor: shopColor }}>
-										<span className={theme.accentTextColor === "#0f172a" ? "text-slate-900 text-xl inline-flex" : "text-white text-xl inline-flex"}>
-											<FiUser />
-										</span>
+								<div className="flex items-center gap-3">
+									<div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-[#FBF2F0] text-[#C98A84]">
+										{shopLogo ? (
+											<img src={shopLogo} alt="" className="h-full w-full object-cover" />
+										) : (
+											<FiUsers size={21} />
+										)}
 									</div>
-									User Management
-								</h1>
-								<p className="text-[#6d534d] mt-1 text-sm">Manage your team members and their access for {shopLabel}</p>
+									<div>
+										<h1 className="text-2xl font-black tracking-tight text-[#2D2626] lg:text-3xl">User &amp; Staff Management</h1>
+										<p className="mt-1 text-sm text-[#796E6B]">Manage team accounts and assigned roles for {shopLabel}</p>
+									</div>
+								</div>
 							</div>
 							{!showForm && (
 								<button
 									onClick={() => setShowForm(true)}
-									className="px-5 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 font-semibold text-sm shadow-sm hover:shadow-md"
-									style={{ backgroundColor: shopColor, color: "white" }}
+									className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-5 text-sm font-bold text-white shadow-sm transition-all hover:bg-[#B97872] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#C98A84]/30"
 									disabled={submitting}
 								>
 									<FiUserPlus size={18} />
@@ -466,17 +478,16 @@ export default function SettingsPage() {
 					</div>
 
 					{showForm && (
-						<div className="bg-[#fffaf7] rounded-2xl border border-[#ead8ca] shadow-sm p-4 lg:p-6 mb-4">
+						<div className="mb-5 rounded-2xl border border-[#E9DEDA] bg-white p-4 shadow-sm lg:p-6">
 							<div className="flex items-center justify-between mb-4">
-								<h3 className="text-lg font-bold text-[#35231d] flex items-center gap-2">
-									<span style={{ color: shopColor, display: "inline-flex" }}>
-										{editingId ? <FiEdit size={18} /> : <FiUserPlus size={18} />}
-									</span>
+								<h3 className="flex items-center gap-2 text-lg font-black text-[#2D2626]">
+									<span className="inline-flex text-[#C98A84]">{editingId ? <FiEdit size={18} /> : <FiUserPlus size={18} />}</span>
 									{editingId ? "Edit User" : "Add New User"}
 								</h3>
 								<button
 									onClick={cancelEdit}
-									className="text-[#6d534d] hover:text-[#35231d] p-2 hover:bg-[#f6efe9] rounded-lg transition-all"
+									className="min-h-11 min-w-11 rounded-xl p-2 text-[#796E6B] transition-all hover:bg-[#FBF2F0] hover:text-[#2D2626]"
+									aria-label="Close user form"
 								>
 									<FiX size={20} />
 								</button>
@@ -484,7 +495,7 @@ export default function SettingsPage() {
 
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 								<div>
-									<label className="block text-sm font-medium text-slate-700 mb-2">
+									<label className="mb-2 block text-sm font-semibold text-[#4D413E]">
 										Username <span className="text-red-600">*</span>
 									</label>
 									<input
@@ -498,7 +509,7 @@ export default function SettingsPage() {
 								</div>
 
 								<div>
-									<label className="block text-sm font-medium text-slate-700 mb-2">
+									<label className="mb-2 block text-sm font-semibold text-[#4D413E]">
 										First Name <span className="text-red-600">*</span>
 									</label>
 									<input
@@ -512,7 +523,7 @@ export default function SettingsPage() {
 								</div>
 
 								<div>
-									<label className="block text-sm font-medium text-slate-700 mb-2">
+									<label className="mb-2 block text-sm font-semibold text-[#4D413E]">
 										Last Name <span className="text-red-600">*</span>
 									</label>
 									<input
@@ -526,7 +537,7 @@ export default function SettingsPage() {
 								</div>
 
 								<div>
-									<label className="block text-sm font-medium text-slate-700 mb-2">
+									<label className="mb-2 block text-sm font-semibold text-[#4D413E]">
 										Role <span className="text-red-600">*</span>
 									</label>
 									<select
@@ -544,7 +555,7 @@ export default function SettingsPage() {
 
 								{!editingId && (
 									<div className="md:col-span-2">
-										<label className="block text-sm font-medium text-slate-700 mb-2">
+										<label className="mb-2 block text-sm font-semibold text-[#4D413E]">
 											Password <span className="text-red-600">*</span>
 										</label>
 										<input
@@ -559,11 +570,10 @@ export default function SettingsPage() {
 								)}
 							</div>
 
-							<div className="flex flex-col sm:flex-row gap-3 mt-4 pt-4 border-t border-slate-200">
+							<div className="mt-4 flex flex-col gap-3 border-t border-[#E9DEDA] pt-4 sm:flex-row">
 								<button
 									onClick={handleAddOrEdit}
-									className="flex-1 px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm disabled:bg-slate-400"
-									style={{ backgroundColor: shopColor, color: theme.accentTextColor }}
+									className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-5 text-sm font-bold text-white transition-all hover:bg-[#B97872] disabled:bg-[#B7A8A3]"
 									disabled={submitting}
 								>
 									<FiCheck size={16} />
@@ -571,7 +581,7 @@ export default function SettingsPage() {
 								</button>
 								<button
 									onClick={cancelEdit}
-									className="flex-1 sm:flex-none px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-medium text-sm"
+									className="flex-1 rounded-xl border border-[#E9DEDA] px-5 py-2.5 text-sm font-bold text-[#796E6B] transition-all hover:bg-[#FBF2F0] sm:flex-none"
 									disabled={submitting}
 								>
 									Cancel
@@ -580,87 +590,135 @@ export default function SettingsPage() {
 						</div>
 					)}
 
-					<div className="bg-[#fffaf7] rounded-2xl border border-[#ead8ca] overflow-hidden shadow-sm">
-						<div className="bg-[#f4eae1] px-4 py-3 border-b border-[#ead8ca]">
-							<h3 className="text-base font-bold text-[#35231d] flex items-center gap-2">
-								<FiUser size={16} />
-								All Users ({users.length})
-							</h3>
+					<div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+						<div className="flex items-center gap-3 rounded-2xl border border-[#E9DEDA] bg-white p-4 shadow-sm">
+							<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FBF2F0] text-[#C98A84]"><FiUsers size={19} /></div>
+							<div><p className="text-xs font-semibold text-[#796E6B]">Team members</p><p className="text-xl font-black text-[#2D2626]">{roleCounts.all}</p></div>
+						</div>
+						<div className="flex items-center gap-3 rounded-2xl border border-[#E9DEDA] bg-white p-4 shadow-sm">
+							<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E5F1E9] text-[#477259]"><FiUser size={19} /></div>
+							<div><p className="text-xs font-semibold text-[#796E6B]">Cashiers</p><p className="text-xl font-black text-[#2D2626]">{roleCounts.cashier}</p></div>
+						</div>
+						<div className="flex items-center gap-3 rounded-2xl border border-[#E9DEDA] bg-white p-4 shadow-sm">
+							<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF3DD] text-[#9A6B25]"><FiShield size={19} /></div>
+							<div><p className="text-xs font-semibold text-[#796E6B]">Admins &amp; kitchen</p><p className="text-xl font-black text-[#2D2626]">{roleCounts.admin + roleCounts.kitchen}</p></div>
+						</div>
+					</div>
+
+					<div className="overflow-hidden rounded-2xl border border-[#E9DEDA] bg-white shadow-sm">
+						<div className="border-b border-[#E9DEDA] p-4 sm:p-5">
+							<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+								<div>
+									<h2 className="text-lg font-black text-[#2D2626]">Staff directory</h2>
+									<p className="mt-1 text-sm text-[#796E6B]">Search team members and manage account access.</p>
+								</div>
+								<label className="relative block w-full lg:max-w-xs">
+									<span className="sr-only">Search staff</span>
+									<FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A08F89]" size={17} />
+									<input
+										type="search"
+										value={searchTerm}
+										onChange={(event) => setSearchTerm(event.target.value)}
+										placeholder="Search name, username, role"
+										className="min-h-11 w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] pl-10 pr-4 text-sm text-[#2D2626] outline-none placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-4 focus:ring-[#C98A84]/20"
+									/>
+								</label>
+							</div>
+							<div className="flex gap-2 overflow-x-auto pt-4" role="group" aria-label="Filter staff by role">
+								{[
+									{ id: "all", label: "All staff", count: roleCounts.all },
+									{ id: "admin", label: "Admins", count: roleCounts.admin },
+									{ id: "cashier", label: "Cashiers", count: roleCounts.cashier },
+									{ id: "kitchen", label: "Kitchen", count: roleCounts.kitchen },
+								].map((tab) => (
+									<button
+										key={tab.id}
+										type="button"
+										aria-pressed={roleFilter === tab.id}
+										onClick={() => setRoleFilter(tab.id)}
+										className={`min-h-10 shrink-0 rounded-xl px-4 text-sm font-bold transition-colors ${roleFilter === tab.id ? "bg-[#C98A84] text-white" : "bg-[#ECE6E2] text-[#796E6B] hover:bg-[#FBF2F0]"}`}
+									>
+										{tab.label}<span className={`ml-2 ${roleFilter === tab.id ? "text-[#FBE9E6]" : "text-[#A08F89]"}`}>{tab.count}</span>
+									</button>
+								))}
+							</div>
 						</div>
 
 						{loading ? (
-							<div className="text-center py-12 text-slate-500">Loading users...</div>
-						) : users.length === 0 ? (
+							<div className="py-12 text-center text-[#796E6B]">Loading users...</div>
+						) : filteredUsers.length === 0 ? (
 							<div className="text-center py-12">
-								<div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-									<span className="text-slate-400 text-2xl inline-flex">
-										<FiUser />
+								<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#ECE6E2]">
+									<span className="inline-flex text-2xl text-[#A08F89]">
+										<FiSearch />
 									</span>
 								</div>
-								<p className="text-base font-semibold text-slate-900 mb-1">No users found</p>
-								<p className="text-slate-600 text-sm">Click Add New User to get started</p>
+								<p className="mb-1 text-base font-bold text-[#2D2626]">{users.length === 0 ? "No team members yet" : "No matching staff found"}</p>
+								<p className="text-sm text-[#796E6B]">{users.length === 0 ? "Add a user to get your team started." : "Try another search or role filter."}</p>
 							</div>
 						) : (
 							<div className="overflow-x-auto">
-								<table className="w-full">
-									<thead className="bg-slate-50 border-b border-slate-200">
+								<table className="w-full min-w-[680px]">
+									<thead className="border-b border-[#E9DEDA] bg-[#FAF6F4]">
 										<tr>
-											<th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">ID</th>
-											<th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">User Info</th>
-											<th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">Role</th>
-											<th className="px-4 py-3 text-right text-xs font-bold text-slate-600 uppercase">Actions</th>
+											<th className="px-5 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-[#796E6B]">Staff member</th>
+											<th className="px-5 py-3.5 text-left text-xs font-bold uppercase tracking-wide text-[#796E6B]">Role</th>
+											<th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-wide text-[#796E6B]">Account actions</th>
 										</tr>
 									</thead>
-									<tbody className="divide-y divide-slate-100">
-										{users.map((user) => (
-											<tr key={user.id} className="hover:bg-slate-50 transition-colors">
-												<td className="px-4 py-3">
-													<div className="flex items-center justify-center w-8 h-8 rounded-lg font-bold text-sm" style={{ backgroundColor: shopColor, color: "white" }}>
-														{user.id}
+									<tbody className="divide-y divide-[#F0E8E5]">
+										{filteredUsers.map((user) => (
+											<tr key={user.id} className="transition-colors hover:bg-[#FBF2F0]">
+												<td className="px-5 py-4">
+													<div className="flex items-center gap-3">
+														<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FBF2F0] text-sm font-black text-[#A65F58]">
+															{`${user.first_name?.[0] || ""}${user.last_name?.[0] || ""}`.toUpperCase() || <FiUser />}
+														</div>
+														<div>
+															<div className="text-sm font-bold text-[#2D2626]">{user.first_name} {user.last_name}</div>
+															<div className="mt-0.5 text-xs text-[#796E6B]">@{user.name} <span className="px-1 text-[#D8CCC8]">·</span> ID {user.id}</div>
+														</div>
 													</div>
 												</td>
-												<td className="px-4 py-3">
-													<div>
-														<div className="font-semibold text-slate-900 text-sm">{user.first_name} {user.last_name}</div>
-														<div className="text-xs text-slate-600 mt-0.5">{user.name}</div>
-													</div>
-												</td>
-												<td className="px-4 py-3">
-													<span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(user.role)}`}>
+												<td className="px-5 py-4">
+													<span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ring-inset ${getRoleBadgeColor(user.role)}`}>
 														{user.role.charAt(0).toUpperCase() + user.role.slice(1)}
 													</span>
 												</td>
-												<td className="px-4 py-3">
+												<td className="px-5 py-4">
 													<div className="flex gap-2 justify-end">
 														<button
 															onClick={() => startEdit(user)}
-															className="bg-[#d9b57f] hover:bg-[#c89d5d] text-[#2d1d18] p-2 rounded-xl transition-all shadow-sm"
+															className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#E9DEDA] text-[#796E6B] transition-all hover:border-[#C98A84] hover:bg-[#FBF2F0] hover:text-[#A65F58]"
 															title="Edit user"
+															aria-label={`Edit ${user.name}`}
 															disabled={submitting}
 														>
 															<FiEdit size={16} />
 														</button>
 														<button
 															onClick={() => openPasswordModal(user.id)}
-															className="bg-[#a56b4b] hover:bg-[#8c543e] text-white p-2 rounded-xl transition-all shadow-sm"
+															className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#E9DEDA] text-[#796E6B] transition-all hover:border-[#C98A84] hover:bg-[#FBF2F0] hover:text-[#A65F58]"
 															title="Change password"
+															aria-label={`Change password for ${user.name}`}
 															disabled={submitting}
 														>
 															<FiLock size={16} />
 														</button>
 														<button
 															onClick={() => openForgotPasswordModal(user)}
-															className="p-2 rounded-xl transition-all shadow-sm"
-															style={{ backgroundColor: shopColor, color: "white" }}
+															className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#E9DEDA] text-[#796E6B] transition-all hover:border-[#C98A84] hover:bg-[#FBF2F0] hover:text-[#A65F58]"
 															title="Forgot password reset"
+															aria-label={`Reset password for ${user.name}`}
 															disabled={submitting}
 														>
 															<FiRefreshCw size={16} />
 														</button>
 														<button
 															onClick={() => handleDelete(user.id)}
-															className="bg-[#b05151] hover:bg-[#8b3e3e] text-white p-2 rounded-xl transition-all shadow-sm"
+															className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#F0C9C4] text-[#B97872] transition-all hover:bg-[#FBF2F0]"
 															title="Delete user"
+															aria-label={`Delete ${user.name}`}
 															disabled={submitting}
 														>
 															<FiTrash2 size={16} />
@@ -677,26 +735,26 @@ export default function SettingsPage() {
 
 					{showPasswordModal && passwordChange.id && (
 						<div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-							<div className="bg-white rounded-lg w-full max-w-md shadow-2xl">
-								<div className="px-4 py-3 rounded-t-lg" style={{ backgroundColor: shopColor }}>
+							<div className="w-full max-w-md rounded-3xl border border-[#E9DEDA] bg-white shadow-2xl">
+								<div className="rounded-t-3xl border-b border-[#E9DEDA] bg-[#FAF6F4] px-5 py-4">
 									<div className="flex items-center justify-between">
-										<h3 className="text-lg font-bold flex items-center gap-2" style={{ color: theme.accentTextColor }}>
+										<h3 className="flex items-center gap-2 text-lg font-black text-[#2D2626]">
 											<FiLock size={18} />
 											Change Password
 										</h3>
 										<button
 											onClick={closePasswordModal}
-											className="hover:bg-white/20 p-1.5 rounded-lg transition-all"
-											style={{ color: theme.accentTextColor }}
+											className="min-h-10 min-w-10 rounded-xl p-1.5 text-[#796E6B] transition-all hover:bg-[#FBF2F0]"
+											aria-label="Close change password dialog"
 										>
 											<FiX size={20} />
 										</button>
 									</div>
 								</div>
 
-								<div className="p-4 space-y-4">
+								<div className="space-y-4 p-5">
 									<div>
-										<label className="block text-sm font-medium text-slate-700 mb-2">Current Password <span className="text-red-600">*</span></label>
+										<label className="mb-2 block text-sm font-semibold text-[#4D413E]">Current Password <span className="text-red-600">*</span></label>
 										<input
 											type="password"
 											placeholder="Enter current password"
@@ -706,7 +764,7 @@ export default function SettingsPage() {
 										/>
 									</div>
 									<div>
-										<label className="block text-sm font-medium text-slate-700 mb-2">New Password <span className="text-red-600">*</span></label>
+										<label className="mb-2 block text-sm font-semibold text-[#4D413E]">New Password <span className="text-red-600">*</span></label>
 										<input
 											type="password"
 											placeholder="Enter new password (min 8 characters)"
@@ -720,15 +778,14 @@ export default function SettingsPage() {
 								<div className="flex gap-3 px-4 pb-4">
 									<button
 										onClick={closePasswordModal}
-										className="flex-1 px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-medium text-sm"
+										className="flex-1 rounded-xl border border-[#E9DEDA] px-5 py-2.5 text-sm font-bold text-[#796E6B] transition-all hover:bg-[#FBF2F0]"
 										disabled={submitting}
 									>
 										Cancel
 									</button>
 									<button
 										onClick={handleChangePassword}
-										className="flex-1 px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm disabled:bg-slate-400"
-										style={{ backgroundColor: shopColor, color: theme.accentTextColor }}
+										className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-5 text-sm font-bold text-white transition-all hover:bg-[#B97872] disabled:bg-[#B7A8A3]"
 										disabled={submitting}
 									>
 										<FiCheck size={16} />
@@ -741,27 +798,27 @@ export default function SettingsPage() {
 
 					{showForgotPasswordModal && forgotPassword.id && (
 						<div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-							<div className="bg-white rounded-lg w-full max-w-md shadow-2xl">
-								<div className="px-4 py-3 rounded-t-lg" style={{ backgroundColor: shopColor }}>
+							<div className="w-full max-w-md rounded-3xl border border-[#E9DEDA] bg-white shadow-2xl">
+								<div className="rounded-t-3xl border-b border-[#E9DEDA] bg-[#FAF6F4] px-5 py-4">
 									<div className="flex items-center justify-between">
-										<h3 className="text-lg font-bold flex items-center gap-2" style={{ color: theme.accentTextColor }}>
+										<h3 className="flex items-center gap-2 text-lg font-black text-[#2D2626]">
 											<FiRefreshCw size={18} />
 											Forgot Password Reset
 										</h3>
 										<button
 											onClick={closeForgotPasswordModal}
-											className="hover:bg-white/20 p-1.5 rounded-lg transition-all"
-											style={{ color: theme.accentTextColor }}
+											className="min-h-10 min-w-10 rounded-xl p-1.5 text-[#796E6B] transition-all hover:bg-[#FBF2F0]"
+											aria-label="Close reset password dialog"
 										>
 											<FiX size={20} />
 										</button>
 									</div>
 								</div>
 
-								<div className="p-4 space-y-4">
-									<p className="text-xs text-slate-500">For security, confirm the username before setting a new password.</p>
+								<div className="space-y-4 p-5">
+									<p className="text-xs text-[#796E6B]">For security, confirm the username before setting a new password.</p>
 									<div>
-										<label className="block text-sm font-medium text-slate-700 mb-2">Username <span className="text-red-600">*</span></label>
+										<label className="mb-2 block text-sm font-semibold text-[#4D413E]">Username <span className="text-red-600">*</span></label>
 										<input
 											type="text"
 											placeholder="Confirm username"
@@ -771,7 +828,7 @@ export default function SettingsPage() {
 										/>
 									</div>
 									<div>
-										<label className="block text-sm font-medium text-slate-700 mb-2">New Password <span className="text-red-600">*</span></label>
+										<label className="mb-2 block text-sm font-semibold text-[#4D413E]">New Password <span className="text-red-600">*</span></label>
 										<input
 											type="password"
 											placeholder="Enter new password (min 8 characters)"
@@ -785,15 +842,14 @@ export default function SettingsPage() {
 								<div className="flex gap-3 px-4 pb-4">
 									<button
 										onClick={closeForgotPasswordModal}
-										className="flex-1 px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-medium text-sm"
+										className="flex-1 rounded-xl border border-[#E9DEDA] px-5 py-2.5 text-sm font-bold text-[#796E6B] transition-all hover:bg-[#FBF2F0]"
 										disabled={submitting}
 									>
 										Cancel
 									</button>
 									<button
 										onClick={handleForgotPasswordReset}
-										className="flex-1 px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm disabled:bg-slate-400"
-										style={{ backgroundColor: shopColor, color: theme.accentTextColor }}
+										className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-5 text-sm font-bold text-white transition-all hover:bg-[#B97872] disabled:bg-[#B7A8A3]"
 										disabled={submitting}
 									>
 										<FiCheck size={16} />
@@ -804,74 +860,15 @@ export default function SettingsPage() {
 						</div>
 					)}
 
-					{pendingAdminAction && (
-						<div className="fixed inset-0 z-70 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(15, 23, 42, 0.52)" }}>
-							<div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-[#e7d7c5]">
-								<div className="px-4 py-3 rounded-t-xl" style={{ backgroundColor: shopColor }}>
-									<div className="flex items-center justify-between">
-										<h3 className="text-lg font-bold flex items-center gap-2" style={{ color: theme.accentTextColor }}>
-											<FiLock size={18} />
-											Admin confirmation
-										</h3>
-										<button
-											onClick={cancelAdminConfirmation}
-											className="hover:bg-white/20 p-1.5 rounded-lg transition-all"
-											style={{ color: theme.accentTextColor }}
-										>
-											<FiX size={20} />
-										</button>
-									</div>
-								</div>
-
-								<div className="p-5 space-y-4">
-									<p className="text-sm text-slate-600">
-										This action requires the password of an admin account before it can be completed.
-									</p>
-									<label className="block text-sm font-medium text-slate-700 mb-2">
-										Admin Password <span className="text-red-600">*</span>
-									</label>
-									<input
-										type="password"
-										placeholder="Enter admin password"
-										className={accentInputClass}
-										value={adminPasswordInput}
-										onChange={(e) => setAdminPasswordInput(e.target.value)}
-										autoFocus
-									/>
-								</div>
-
-								<div className="flex gap-3 px-4 pb-4">
-									<button
-										onClick={cancelAdminConfirmation}
-										className="flex-1 px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all font-medium text-sm"
-										disabled={submitting}
-									>
-										Cancel
-									</button>
-									<button
-										onClick={executePendingAction}
-										className="flex-1 px-5 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2 text-sm disabled:bg-slate-400"
-										style={{ backgroundColor: shopColor, color: theme.accentTextColor }}
-										disabled={submitting}
-									>
-										<FiCheck size={16} />
-										Confirm
-									</button>
-								</div>
-							</div>
-						</div>
-					)}
-
 					{modal.isOpen && (
 						<div className="fixed inset-0 z-60 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
-							<div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-								<h3 className="text-lg font-bold text-slate-900 mb-2">{modal.title}</h3>
-								<p className="text-slate-600 mb-5 text-sm">{modal.message}</p>
+							<div className="w-full max-w-md rounded-3xl border border-[#E9DEDA] bg-white p-6 shadow-2xl">
+								<h3 className="mb-2 text-lg font-black text-[#2D2626]">{modal.title}</h3>
+								<p className="mb-5 text-sm text-[#796E6B]">{modal.message}</p>
 								<div className="flex justify-end">
 									<button
 										onClick={closeModal}
-										className="px-4 py-2 rounded-lg transition-colors font-medium"
-										style={{ backgroundColor: shopColor, color: theme.accentTextColor }}
+										className="min-h-11 rounded-xl bg-[#C98A84] px-5 font-bold text-white transition-colors hover:bg-[#B97872]"
 									>
 										OK
 									</button>

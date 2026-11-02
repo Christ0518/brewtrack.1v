@@ -6,15 +6,29 @@ import { useState, useEffect } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
 import { getShopTheme } from "@/lib/theme";
+import {
+  FiBarChart2,
+  FiBox,
+  FiCreditCard,
+  FiGrid,
+  FiLayers,
+  FiLogOut,
+  FiMenu,
+  FiSettings,
+  FiX,
+} from "react-icons/fi";
 
 export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const [shopName, setShopName] = useState("Shop");
   const [shopLogo, setShopLogo] = useState("");
   const [shopColor, setShopColor] = useState("#6c3030");
+  const [shopId, setShopId] = useState<string | null>(null);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [user, setUser] = useState<{
     name?: string;
     first_name?: string;
@@ -32,6 +46,7 @@ export default function Sidebar() {
 
     if (storedShop) setShopName(storedShop);
     if (storedLogo) setShopLogo(storedLogo);
+    setShopId(storedShopId || "1");
     setShopColor(storedShopId === "1" ? theme.accentColor : storedColor || theme.accentColor);
     if (storedUser && storedUser !== "undefined") {
       try {
@@ -44,13 +59,46 @@ export default function Sidebar() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!shopId) return;
+
+    let cancelled = false;
+    const loadLowStockCount = async () => {
+      try {
+        const response = await fetch(`${api_links.tbl_ingredients}?shop_id=${shopId}`, {
+          headers: { "x-shop-id": shopId },
+        });
+        if (!response.ok) {
+          throw new Error(`Ingredient request failed with status ${response.status}`);
+        }
+
+        const ingredients: unknown = await response.json();
+        if (!Array.isArray(ingredients)) {
+          throw new Error("Ingredient response was not a list");
+        }
+
+        const count = ingredients.filter(
+          (ingredient) => Number(ingredient?.quantity || 0) <= 5
+        ).length;
+        if (!cancelled) setLowStockCount(count);
+      } catch (error) {
+        if (!cancelled) console.error("Failed to load low-stock ingredient count:", error);
+      }
+    };
+
+    loadLowStockCount();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId]);
+
   const menuItems = [
-    { name: "Dashboard", path: "/dashboard", icon: "📊" },
-    { name: "Products", path: "/dashboard/products", icon: "📦" },
-    { name: "Ingredients", path: "/dashboard/ingredients", icon: "🗂️" },
-    { name: "Reports", path: "/dashboard/reports", icon: "📄" },
-    { name: "Transactions", path: "/dashboard/transactions", icon: "💰" },
-    { name: "Settings", path: "/dashboard/settings", icon: "⚙️" },
+    { name: "Dashboard", path: "/dashboard", icon: FiGrid },
+    { name: "Products", path: "/dashboard/products", icon: FiBox },
+    { name: "Ingredients", path: "/dashboard/ingredients", icon: FiLayers },
+    { name: "Reports", path: "/dashboard/reports", icon: FiBarChart2 },
+    { name: "Transactions", path: "/dashboard/transactions", icon: FiCreditCard },
+    { name: "Settings", path: "/dashboard/settings", icon: FiSettings },
   ];
 
   const handleLogout = async () => {
@@ -70,172 +118,170 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {isOpen && (
+      <button
+        type="button"
+        onClick={() => setIsMobileOpen(true)}
+        className="fixed left-4 top-4 z-40 flex h-12 w-12 items-center justify-center rounded-xl border border-[#E9DFDB] bg-[#FAF6F4] text-[#514441] shadow-md transition-colors hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84] lg:hidden"
+        aria-label="Open navigation menu"
+        aria-expanded={isMobileOpen}
+        aria-controls="primary-navigation"
+      >
+        <FiMenu aria-hidden="true" className="h-5 w-5" />
+      </button>
+
+      {isMobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
-          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-40 bg-[#2D2626]/40 backdrop-blur-[2px] lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      {/* Sidebar */}
       <aside
-        className={`${
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        } fixed top-0 left-0 h-screen ${
-          isOpen ? "w-64" : "w-0 lg:w-20"
-        } flex flex-col border-r border-beige bg-cream shadow-lg transition-all duration-300 z-50 lg:z-30`}
+        className={`fixed left-0 top-0 z-50 flex h-dvh flex-col border-r border-[#E9DFDB] bg-[#FAF6F4] shadow-xl transition-[width,transform] duration-200 ease-out lg:z-30 lg:translate-x-0 lg:shadow-sm ${
+          isExpanded ? "w-64" : "w-20"
+        } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        aria-label="Primary navigation"
       >
-        {/* Logo Section - Clickable to toggle */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex min-h-16 shrink-0 cursor-pointer items-center justify-center border-b border-beige p-4 transition-colors hover:bg-pale"
-          aria-label="Toggle sidebar"
-        >
-          {isOpen ? (
-            <div className="flex items-center gap-3 text-2xl font-bold" style={{ color: shopColor }}>
-              {shopLogo && <img src={shopLogo} alt={`${shopName} logo`} className="h-10 w-10 rounded-md object-cover" />}
-              <span className="truncate">{shopName}</span>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center text-center text-lg font-bold" style={{ color: shopColor }}>
-              {shopLogo ? <img src={shopLogo} alt={`${shopName} logo`} className="h-9 w-9 rounded-md object-cover" /> : shopName?.split(' ').map((w) => w[0]).join('') || 'S'}
-            </div>
+        <div className={`relative flex min-h-[76px] shrink-0 items-center border-b border-[#E9DFDB] ${isExpanded ? "gap-3 px-4" : "justify-center px-3"}`}>
+          <button
+            type="button"
+            onClick={() => setIsExpanded((expanded) => !expanded)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84]"
+            aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={isExpanded}
+            aria-controls="primary-navigation"
+            title={isExpanded ? "Collapse navigation" : "Expand navigation"}
+          >
+            {shopLogo ? (
+              <img src={shopLogo} alt="" className="h-10 w-10 rounded-xl object-cover" />
+            ) : (
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white" style={{ backgroundColor: shopColor }}>
+                {shopName.split(" ").map((word) => word[0]).join("").slice(0, 2) || "S"}
+              </span>
+            )}
+          </button>
+          {isExpanded && (
+            <Link
+              href="/dashboard"
+              onClick={() => setIsMobileOpen(false)}
+              className="min-w-0 flex-1 truncate rounded-lg text-base font-bold text-[#2D2626] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84]"
+            >
+              {shopName}
+            </Link>
           )}
-        </button>
+          <button
+            type="button"
+            onClick={() => setIsMobileOpen(false)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#8A7C78] transition-colors hover:bg-[#ECE6E2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84] lg:hidden"
+            aria-label="Close navigation menu"
+          >
+            <FiX aria-hidden="true" className="h-5 w-5" />
+          </button>
+        </div>
 
-        {/* User Info (when expanded) */}
-        {isOpen && user && (
-          <div className="shrink-0 border-b border-beige bg-pale px-4 py-3">
+        {isExpanded && user && (
+          <div className="shrink-0 border-b border-[#E9DFDB] bg-[#F3ECE8] px-4 py-3">
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
                 style={{ backgroundColor: shopColor }}
               >
                 {(user.first_name || user.name || "U")[0]}{user.last_name?.[0] || ""}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-900 truncate">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-[#2D2626]">
                   {[user.first_name, user.last_name].filter(Boolean).join(" ") || user.name || "User"}
                 </div>
-                <div className="text-xs text-slate-600 capitalize">{user.role}</div>
+                <div className="text-xs capitalize text-[#8A7C78]">{user.role}</div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Menu Items */}
-        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+        <nav id="primary-navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {menuItems.map((item) => {
-            const isActive = pathname === item.path;
+            const isActive = pathname === item.path || (item.path !== "/dashboard" && pathname.startsWith(`${item.path}/`));
             return (
               <Link
                 key={item.name}
                 href={item.path}
                 onClick={() => {
-                  if (window.innerWidth < 1024) {
-                    setIsOpen(false);
-                  }
+                  setIsMobileOpen(false);
                 }}
-                className={`group relative flex items-center gap-3 rounded-md px-3 py-2.5 transition-all
-                ${
+                className={`group relative flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84] ${
                   isActive
-                    ? "text-white"
-                    : "text-primary hover:bg-tan hover:text-white"
-                }
-                ${!isOpen ? "justify-center lg:px-3" : ""}`}
-                style={isActive ? { backgroundColor: "var(--text-primary)" } : {}}
-                title={!isOpen ? item.name : ""}
+                    ? "bg-[#C98A84] text-white shadow-sm shadow-[#C98A84]/20"
+                    : "text-[#796E6B] hover:bg-[#ECE6E2] hover:text-[#514441]"
+                } ${!isExpanded ? "justify-center" : ""}`}
+                title={!isExpanded ? item.name : undefined}
+                aria-current={isActive ? "page" : undefined}
               >
-                <span className={`text-lg shrink-0`}>
-                  {item.icon}
-                </span>
-                {isOpen && (
-                  <>
-                    <span className="text-sm font-medium flex-1">{item.name}</span>
-                    {isActive && (
-                      <span className="text-white text-sm">›</span>
-                    )}
-                  </>
-                )}
-
-                {/* Tooltip for collapsed state */}
-                {!isOpen && (
-                  <div className="invisible absolute left-full z-50 ml-2 whitespace-nowrap rounded-md bg-deep text-xs text-white opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100">
-                    {item.name}
-                    <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
-                  </div>
+                <item.icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+                {isExpanded && <span className="min-w-0 flex-1 truncate">{item.name}</span>}
+                {item.name === "Ingredients" && lowStockCount > 0 && (
+                  <span
+                    className={`inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-[#D4AC68] px-1.5 text-xs font-bold leading-none text-[#382F2D] ${
+                      isExpanded ? "" : "absolute right-0 top-0 -translate-y-1/4 translate-x-1/4"
+                    }`}
+                    aria-label={`${lowStockCount} low-stock ingredients`}
+                    title={`${lowStockCount} low-stock ingredients`}
+                  >
+                    {lowStockCount > 99 ? "99+" : lowStockCount}
+                  </span>
                 )}
               </Link>
             );
           })}
         </nav>
 
-        {/* Bottom Section */}
-        <div className="shrink-0 border-t border-beige">
-          {/* Logout Button */}
+        <div className="shrink-0 border-t border-[#E9DFDB] p-3">
           <button
             onClick={() => setShowLogoutModal(true)}
-            className={`group m-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-md bg-red-50 p-2.5 text-red-600 transition-all hover:bg-red-600 hover:text-white hover:shadow-md
-            ${!isOpen ? "justify-center" : ""}`}
-            title={!isOpen ? "Logout" : ""}
+            className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-[#796E6B] transition-colors hover:bg-[#F8EDEA] hover:text-[#A76560] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84] ${
+              !isExpanded ? "justify-center" : ""
+            }`}
+            title={!isExpanded ? "Logout" : undefined}
           >
-            <span className="text-lg shrink-0">🚪</span>
-            {isOpen && <span className="text-sm font-medium">Logout</span>}
-
-            {/* Tooltip for collapsed state */}
-            {!isOpen && (
-              <div className="absolute left-full ml-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap shadow-lg z-50">
-                Logout
-                <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
-              </div>
-            )}
+            <FiLogOut aria-hidden="true" className="h-5 w-5 shrink-0" />
+            {isExpanded && <span>Logout</span>}
           </button>
 
-          {/* Copyright */}
-          {isOpen && (
-            <div className="px-4 pb-3 text-center">
-              <p className="text-xs text-primary/70">© 2025 {shopName}</p>
-            </div>
-          )}
+          {isExpanded && <p className="px-2 pt-3 text-center text-xs text-[#A39490]">© 2025 {shopName}</p>}
         </div>
       </aside>
 
-      {/* Spacer for main content */}
-      <div
-        className={`${
-          isOpen ? "w-64" : "w-0 lg:w-20"
-        } shrink-0 transition-all duration-300`}
-      />
+      <div className={`hidden shrink-0 transition-[width] duration-200 lg:block ${isExpanded ? "w-64" : "w-20"}`} aria-hidden="true" />
 
-      {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          role="presentation"
+          onClick={() => setShowLogoutModal(false)}
         >
-          <div className="w-full max-w-md transform rounded-md bg-cream p-6 shadow-2xl transition-all">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-lg">
-                ⚠️
+          <div className="w-full max-w-md rounded-2xl border border-[#E9DFDB] bg-[#FAF6F4] p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="logout-title" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FEF2F2] text-[#B91C1C]">
+                <FiLogOut aria-hidden="true" className="h-5 w-5" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900">Confirm Logout</h3>
+              <h3 id="logout-title" className="text-xl font-bold text-[#2D2626]">Confirm logout</h3>
             </div>
 
-            <p className="text-slate-600 mb-6">
+            <p className="mb-6 text-sm leading-6 text-[#796E6B]">
               Are you sure you want to logout? You will need to sign in again to access your account.
             </p>
 
-            <div className="flex gap-3 justify-end">
+            <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowLogoutModal(false)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
+                className="min-h-12 rounded-xl border border-[#DCCFC9] px-4 text-sm font-semibold text-[#514441] transition-colors hover:bg-[#ECE6E2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A84]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                className="min-h-12 rounded-xl bg-[#DC2626] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F46E5]"
               >
                 Logout
               </button>

@@ -16,7 +16,6 @@ import {
   FiX,
 } from "react-icons/fi";
 import { useAlertModal } from "@/hooks/useAlertModal";
-import { getShopTheme } from "@/lib/theme";
 
 interface Ingredient {
   ingredient_id: number | string;
@@ -48,7 +47,6 @@ export default function EditProduct({
   onCancel,
 }: EditProductProps) {
   const router = useRouter();
-  const theme = getShopTheme(shopId);
 
   const [form, setForm] = useState({
     category_id: "",
@@ -234,6 +232,16 @@ export default function EditProduct({
       return;
     }
 
+    if (variants.some((variant) =>
+      variant.ingredients.some((ingredient) => !Number.isFinite(Number(ingredient.amount)) || Number(ingredient.amount) <= 0)
+    )) {
+      showAlert("Enter a recipe amount greater than zero for every selected ingredient", {
+        variant: "error",
+        title: "Recipe Amount Required",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -291,11 +299,11 @@ export default function EditProduct({
   ========================= */
   if (fetching) {
     return (
-      <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
         <AlertModal />
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#6c3030] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#8a6245] font-medium">Loading product...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#E0E7FF] border-t-[#4F46E5]" />
+          <p className="font-medium text-[#475569]">Loading product…</p>
         </div>
       </div>
     );
@@ -305,40 +313,41 @@ export default function EditProduct({
      UI
   ========================= */
   return (
-    <div className="min-h-screen bg-[#f8f1e8] flex items-center justify-center p-4 lg:p-6">
+    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-[#0F172A] sm:px-6 lg:px-8">
       <AlertModal />
-      <div className="w-full max-w-6xl">
+      <div className="mx-auto w-full max-w-5xl">
 
-        <div className="mb-6">
+        <div className="mb-6 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <div className="p-2.5 text-white" style={{ backgroundColor: theme.accentColor }}>
-                  <FiPackage />
+              <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-[#0F172A] lg:text-3xl">
+                <div className="rounded-xl bg-[#EEF2FF] p-2.5 text-[#4F46E5]">
+                  <FiPackage aria-hidden="true" />
                 </div>
                 Edit Product
               </h1>
-              <p className="text-slate-600 mt-1 text-sm">
+              <p className="mt-1 text-sm text-[#64748B]">
                 Update product details and variants
               </p>
             </div>
             <button
               onClick={onCancel}
-              className="text-slate-600 hover:text-slate-800 p-2 hover:bg-slate-100 rounded-lg transition-all"
+              aria-label="Cancel and close"
+              className="flex h-12 w-12 items-center justify-center rounded-xl text-[#64748B] transition-colors hover:bg-[#F1F5F9] hover:text-[#0F172A]"
             >
               <FiX size={20} />
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
 
-          <div className="border border-slate-200 bg-white p-4 lg:p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Product Information</h2>
+          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm lg:p-6">
+            <h2 className="mb-5 text-lg font-bold text-[#0F172A]">Product Information</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col">
-                <label className="text-sm font-medium text-slate-700 mb-2">
+                <label className="mb-2 text-sm font-medium text-[#334155]">
                   Product Name <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -346,21 +355,21 @@ export default function EditProduct({
                   value={form.product_name}
                   onChange={handleChange}
                   placeholder="e.g., Caramel Macchiato"
-                  className="p-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                  className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
                   required
                   disabled={loading}
                 />
               </div>
 
               <div className="flex flex-col">
-                <label className="text-sm font-medium text-slate-700 mb-2">
+                <label className="mb-2 text-sm font-medium text-[#334155]">
                   Category <span className="text-red-600">*</span>
                 </label>
                 <select
                   name="category_id"
                   value={form.category_id}
                   onChange={handleChange}
-                  className="p-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none cursor-pointer"
+                  className="min-h-12 cursor-pointer rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
                   required
                   disabled={loading}
                 >
@@ -374,21 +383,21 @@ export default function EditProduct({
               </div>
 
               <div className="flex flex-col md:col-span-2">
-                <label className="text-sm font-medium text-slate-700 mb-2">Description</label>
+                <label className="mb-2 text-sm font-medium text-[#334155]">Description</label>
                 <textarea
                   name="product_description"
                   value={form.product_description}
                   onChange={handleChange}
                   placeholder="Enter product description..."
-                  className="p-2.5 border border-slate-300 rounded-lg text-slate-900 bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none resize-none"
+                  className="resize-none rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-3 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
                   rows={3}
                   disabled={loading}
                 />
               </div>
 
               <div className="flex flex-col md:col-span-2">
-                <label className="text-sm font-medium text-slate-700 mb-2">Product Image</label>
-                <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 hover:border-[#073dbe] transition-all">
+                <label className="mb-2 text-sm font-medium text-[#334155]">Product Image</label>
+                <div className="rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-6 transition-colors hover:border-[#4F46E5]">
                   <input
                     type="file"
                     name="image"
@@ -407,21 +416,21 @@ export default function EditProduct({
                         <img
                           src={imagePreview}
                           alt="Preview"
-                          className="h-40 w-40 object-cover rounded-lg border border-slate-200"
+                          className="h-40 w-40 rounded-xl border border-[#E2E8F0] object-cover"
                         />
-                        <div className="flex items-center gap-2 text-[#073dbe] font-medium text-sm">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
                           <FiUpload size={16} />
                           Click to change image
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-3 text-slate-500">
-                        <div className="bg-slate-100 p-4 rounded-lg">
+                      <div className="flex flex-col items-center gap-3 text-[#64748B]">
+                        <div className="rounded-xl bg-[#EEF2FF] p-4 text-[#4F46E5]">
                           <FiImage size={28} />
                         </div>
                         <div className="text-center">
-                          <p className="font-medium text-slate-700 text-sm">Click to upload image</p>
-                          <p className="text-xs text-slate-500 mt-1">PNG, JPG up to 10MB</p>
+                          <p className="text-sm font-semibold text-[#334155]">Click to upload image</p>
+                          <p className="mt-1 text-xs text-[#64748B]">PNG, JPG up to 10MB</p>
                         </div>
                       </div>
                     )}
@@ -431,14 +440,13 @@ export default function EditProduct({
             </div>
           </div>
 
-          <div className="border border-slate-200 bg-white p-4 lg:p-6">
+          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm lg:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h2 className="text-lg font-bold text-slate-900">Product Variants</h2>
+              <h2 className="text-lg font-bold text-[#0F172A]">Product Variants</h2>
               <button
                 type="button"
                 onClick={addVariant}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition-all hover:opacity-90"
-                style={{ backgroundColor: theme.accentColor }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#059669] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#047857]"
                 disabled={loading}
               >
                 <FiPlus size={16} />
@@ -456,11 +464,11 @@ export default function EditProduct({
               {variants.map((variant, vi) => (
                 <div
                   key={vi}
-                  className="border border-slate-200 bg-slate-50 p-4"
+                  className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:p-5"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-slate-900 flex items-center gap-2 text-sm">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-lg text-xs text-white" style={{ backgroundColor: theme.accentColor }}>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#4F46E5] text-xs text-white">
                         {vi + 1}
                       </span>
                       Variant {vi + 1}
@@ -469,7 +477,8 @@ export default function EditProduct({
                       <button
                         type="button"
                         onClick={() => removeVariant(vi)}
-                        className="text-red-600 hover:text-red-700 p-1.5 hover:bg-red-50 rounded-lg transition-all"
+                        aria-label={`Remove variant ${vi + 1}`}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl text-[#DC2626] transition-colors hover:bg-[#FEF2F2]"
                         disabled={loading}
                       >
                         <FiTrash2 size={16} />
@@ -479,21 +488,21 @@ export default function EditProduct({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div className="flex flex-col">
-                      <label className="text-sm font-medium text-slate-700 mb-2">
+                      <label className="mb-2 text-sm font-medium text-[#334155]">
                         Variant Name <span className="text-red-600">*</span>
                       </label>
                       <input
                         value={variant.name}
                         onChange={(e) => updateVariant(vi, "name", e.target.value)}
                         placeholder="e.g., Small, Medium, Large"
-                        className="p-2.5 border border-slate-300 rounded-lg bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm"
+                        className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
                         required
                         disabled={loading}
                       />
                     </div>
 
                     <div className="flex flex-col">
-                      <label className="text-sm font-medium text-slate-700 mb-2">
+                      <label className="mb-2 text-sm font-medium text-[#334155]">
                         Price <span className="text-red-600">*</span>
                       </label>
                       <input
@@ -503,18 +512,18 @@ export default function EditProduct({
                         placeholder="0.00"
                         step="0.01"
                         min="0"
-                        className="p-2.5 border border-slate-300 rounded-lg bg-white focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none text-sm"
+                        className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
                         required
                         disabled={loading}
                       />
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-200 pt-4">
+                  <div className="border-t border-[#E2E8F0] pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-slate-700">Select Ingredients</h4>
-                      <div className="relative w-64">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <div className="relative w-full max-w-xs">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
                           <FiSearch size={14} />
                         </div>
                         <input
@@ -522,11 +531,58 @@ export default function EditProduct({
                           placeholder="Search ingredients..."
                           value={searchQueries[vi] || ""}
                           onChange={(e) => handleSearchChange(vi, e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-[#073dbe] focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                          className="min-h-11 w-full rounded-xl border border-[#CBD5E1] bg-white py-2 pl-9 pr-3 text-sm text-[#0F172A] outline-none focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
                           disabled={loading}
                         />
                       </div>
                     </div>
+
+                    {variant.ingredients.some(
+                      (recipeIngredient) =>
+                        !ingredients.some(
+                          (ingredient) =>
+                            String(ingredient.id) === String(recipeIngredient.ingredient_id)
+                        )
+                    ) && (
+                      <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                        <p className="mb-2 text-sm text-amber-900">
+                          These saved recipe ingredients are unavailable in this shop and count as zero stock.
+                          Remove them or replace them with an active ingredient.
+                        </p>
+                        <div className="space-y-2">
+                          {variant.ingredients
+                            .filter(
+                              (recipeIngredient) =>
+                                !ingredients.some(
+                                  (ingredient) =>
+                                    String(ingredient.id) === String(recipeIngredient.ingredient_id)
+                                )
+                            )
+                            .map((recipeIngredient) => (
+                              <div
+                                key={String(recipeIngredient.ingredient_id)}
+                                className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2"
+                              >
+                                <span className="text-sm font-medium text-slate-800">
+                                  {recipeIngredient.name ||
+                                    recipeIngredient.ingredient_name ||
+                                    `Ingredient #${recipeIngredient.ingredient_id}`}
+                                  {" · "}
+                                  {recipeIngredient.amount}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeIngredient(vi, recipeIngredient.ingredient_id)}
+                                  className="rounded-lg px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50"
+                                  disabled={loading}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2">
                       {getFilteredIngredients(vi).length > 0 ? (
@@ -538,10 +594,10 @@ export default function EditProduct({
                           return (
                             <div
                               key={ing.id}
-                              className={`border rounded-lg p-3 transition-all ${
+                              className={`rounded-xl border p-3 transition-colors ${
                                 selected
-                                  ? "border-[#073dbe] bg-blue-50"
-                                  : "border-slate-200 bg-white hover:border-slate-300"
+                                  ? "border-[#A5B4FC] bg-[#EEF2FF]"
+                                  : "border-[#E2E8F0] bg-white hover:border-[#C7D2FE]"
                               }`}
                             >
                               <label className="flex items-start gap-2 cursor-pointer">
@@ -557,15 +613,15 @@ export default function EditProduct({
                                       removeIngredient(vi, ing.id);
                                     }
                                   }}
-                                  className="mt-0.5 w-4 h-4 text-[#073dbe] rounded focus:ring-2 focus:ring-blue-200"
+                                  className="mt-0.5 h-4 w-4 rounded accent-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                                   disabled={loading}
                                 />
                                 <div className="flex-1">
-                                  <div className="font-medium text-slate-900 text-sm">
+                                  <div className="text-sm font-semibold text-[#0F172A]">
                                     {ing.ingredient_name}
                                   </div>
-                                  <div className="text-xs text-slate-500">
-                                    Available: {ing.quantity ?? 0} {ing.unit}
+                                  <div className="text-xs text-[#64748B]">
+                                    Available: <span className="font-medium text-[#334155]">{ing.quantity ?? 0} {ing.unit}</span>
                                   </div>
 
                                   {selected && (
@@ -578,7 +634,7 @@ export default function EditProduct({
                                       }}
                                       step="0.01"
                                       min="0"
-                                      className="w-full mt-2 p-2 border border-[#073dbe] rounded-lg text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                                      className="mt-2 min-h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/10"
                                       disabled={loading}
                                     />
                                   )}
@@ -599,12 +655,11 @@ export default function EditProduct({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               type="submit"
               disabled={loading}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg py-3 font-medium text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ backgroundColor: theme.accentColor }}
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#059669] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#047857] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
             >
               {loading ? (
                 <>
@@ -621,7 +676,7 @@ export default function EditProduct({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 sm:flex-none bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-3 rounded-lg transition-all font-medium disabled:opacity-50"
+              className="min-h-12 flex-1 rounded-xl border border-[#CBD5E1] px-6 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F1F5F9] disabled:opacity-50 sm:flex-none"
             >
               Cancel
             </button>

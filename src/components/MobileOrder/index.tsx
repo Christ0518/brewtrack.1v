@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
-import { getShopTheme } from "@/lib/theme";
 import { buildBarceloReceiptHtml } from "@/components/receipt/barcelo";
 import { buildGoodcoffeeReceiptHtml } from "@/components/receipt/goodcoffee";
 import {
@@ -53,6 +52,7 @@ interface ShopInfo {
   id: string;
   name: string;
   brand_color: string;
+  logo_url?: string | null;
   receipt_header?: string;
   receipt_footer?: string;
 }
@@ -99,6 +99,10 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   const [searchTerm, setSearchTerm] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [tableNumber, setTableNumber] = useState("");
+  const [orderType, setOrderType] = useState<"dine-in" | "takeout">("dine-in");
+  const [discountType, setDiscountType] = useState<"none" | "senior" | "pwd">("none");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
+  const [paymentReference, setPaymentReference] = useState("");
   const [notes, setNotes] = useState("");
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -108,6 +112,8 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   const [cartOpen, setCartOpen] = useState(false);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
+  const [confirmingOrder, setConfirmingOrder] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [receiptHtml, setReceiptHtml] = useState<string>("");
   const [popularProduct, setPopularProduct] = useState<PopularProduct | null>(null);
   const [modal, setModal] = useState<Modal>({
@@ -117,7 +123,8 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
     message: "",
   });
 
-  const brandColor = getShopTheme(shopId).accentColor;
+  const brandColor = "#C98A84";
+  const discountAmount = discountType === "none" ? 0 : 5;
 
   const getProductVariants = (product: Product) => product.tbl_product_variants || product.variants || [];
 
@@ -189,7 +196,13 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
         const addOnsRes = await fetch(`${api_links.tbl_toppings}?shop_id=${shopId}`);
         if (addOnsRes.ok) {
           const addOnsData = await addOnsRes.json();
-          const normalizedAddOns = Array.isArray(addOnsData) ? addOnsData : [];
+          const normalizedAddOns: AddOn[] = Array.isArray(addOnsData)
+            ? addOnsData
+            : Array.isArray(addOnsData?.toppings)
+              ? addOnsData.toppings
+              : Array.isArray(addOnsData?.addOns)
+                ? addOnsData.addOns
+                : [];
           const filteredAddOns = normalizedAddOns.filter((addon) => {
             if (addon.shop_id === undefined || addon.shop_id === null) return true;
             return String(addon.shop_id) === String(shopId);
@@ -206,14 +219,16 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
           if (ordersRes.ok) {
             const ordersData = await ordersRes.json();
-            const recentCutoff = Date.now() - 1000 * 60 * 60 * 24 * 30;
+            const weekStart = new Date();
+            weekStart.setHours(0, 0, 0, 0);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
             const productTotals = new Map<string, number>();
 
             (Array.isArray(ordersData) ? ordersData : [])
               .filter((order: any) => {
                 const status = String(order.status || "").toLowerCase();
-                const createdAt = new Date(order.created_at || "").getTime();
-                return status !== "pending" && status !== "awaiting_acceptance" && createdAt >= recentCutoff;
+                const createdAt = new Date(order.created_at || "");
+                return status === "completed" && createdAt >= weekStart;
               })
               .forEach((order: any) => {
                 (Array.isArray(order.items) ? order.items : []).forEach((item: any) => {
@@ -272,6 +287,32 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
     }
   }, []);
 
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const resetKioskTimer = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        setCart([]);
+        setCustomerName("");
+        setTableNumber("");
+        setNotes("");
+        setConfirmingOrder(false);
+        localStorage.removeItem("customerCart");
+      }, 15 * 60 * 1000);
+    };
+
+    ["pointerdown", "keydown", "touchstart"].forEach((eventName) =>
+      window.addEventListener(eventName, resetKioskTimer)
+    );
+    resetKioskTimer();
+    return () => {
+      clearTimeout(timeout);
+      ["pointerdown", "keydown", "touchstart"].forEach((eventName) =>
+        window.removeEventListener(eventName, resetKioskTimer)
+      );
+    };
+  }, []);
+
   const handleProductClick = (product: Product) => {
     const hasStock = getProductVariants(product).some((variant) => getVariantStock(variant) > 0);
     if (!hasStock) {
@@ -281,7 +322,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
     const variants = getProductVariants(product);
 
-    if (variants.length === 1) {
+    if (variants.length === 1 && addOns.length === 0) {
       addToCart(product, variants[0], []);
     } else {
       setSelectedProduct(product);
@@ -341,10 +382,10 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal();
+    return Math.max(0, calculateSubtotal() - discountAmount);
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (cart.length === 0) {
       showModal("error", "Empty Cart", "Please add items to cart");
       return;
@@ -354,17 +395,33 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
       showModal("error", "Name Required", "Please enter your name");
       return;
     }
+    if (orderType === "dine-in" && !tableNumber) {
+      showModal("error", "Table Required", "Please select a table number for dine-in orders");
+      return;
+    }
+    if (paymentMethod === "online" && !paymentReference.trim()) {
+      showModal("error", "Payment Reference Required", "Please enter the online payment reference");
+      return;
+    }
+    setCartOpen(false);
+    setConfirmingOrder(true);
+  };
 
+  const submitOrder = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const total = calculateTotal();
       const orderPayload = {
         customer_name: customerName.trim(),
-        table_number: tableNumber ? parseInt(tableNumber, 10) : null,
-        order_type: "dine-in",
+        table_number: orderType === "dine-in" && tableNumber ? parseInt(tableNumber, 10) : null,
+        order_type: orderType,
         status: "awaiting_acceptance",
         total,
-        discount_type: "none",
-        discount: 0,
+        discount_type: discountType,
+        discount: discountAmount,
+        payment_method: paymentMethod,
+        payment_reference: paymentMethod === "online" ? paymentReference.trim() : null,
         notes: notes || null,
         items: cart.map((item) => ({
           variant_id: item.variant_id,
@@ -400,22 +457,25 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
       // Generate receipt
       const now = new Date();
       const formattedDate = now.toLocaleString();
-      const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) || 0) * item.quantity, 0);
+      const subtotal = calculateSubtotal();
       const receiptItems = cart.map((item) => ({
         productName: `${item.product_name} - ${item.variant_name}`,
         quantity: item.quantity,
-        lineTotal: (Number(item.price) || 0) * item.quantity,
+        lineTotal:
+          (Number(item.price) +
+            item.addOns.reduce((sum, addOn) => sum + (Number(addOn.price) || 0), 0)) *
+          item.quantity,
       }));
 
       const receiptData = {
         referenceNumber: String(result.order_id),
         shopName: shopInfo?.name || "Shop",
         customerName: customerName,
-        orderType: "dine-in" as "dine-in" | "takeout",
+        orderType,
         createdAt: formattedDate,
         subtotal: subtotal,
-        discount: 0,
-        total: calculateTotal(),
+        discount: discountAmount,
+        total,
         paid: calculateTotal(),
         change: 0,
         items: receiptItems,
@@ -433,12 +493,15 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
       setReceiptHtml(receiptHtml);
       setSubmittedOrderId(result.order_id);
+      setConfirmingOrder(false);
       setOrderSubmitted(true);
       setCart([]);
       localStorage.removeItem("customerCart");
     } catch (error: any) {
       console.error("Checkout error:", error);
       showModal("error", "Order Failed", error.message || "Failed to submit order");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -463,42 +526,41 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
   if (orderSubmitted) {
     return (
-      <div className="min-h-screen bg-slate-50 pb-20">
-        <div className="max-w-md mx-auto bg-white min-h-screen shadow-sm">
+      <div className="min-h-screen bg-[#FAF6F4] px-4 pb-20 pt-6 text-[#2D2626] sm:px-6">
+        <div className="mx-auto min-h-screen max-w-3xl overflow-hidden rounded-2xl border border-[#E9DEDA] bg-[#FFFCFA] shadow-[0_8px_24px_rgba(74,49,44,0.06)]">
           {receiptHtml && (
-            <div className="p-4">
+            <div className="border-b border-[#E9DEDA] bg-[#FAF6F4] p-4 sm:p-6">
               <iframe
                 srcDoc={receiptHtml}
-                className="w-full border-0 bg-white rounded-md shadow-sm overflow-hidden"
+                className="w-full overflow-hidden rounded-xl border border-[#E9DEDA] bg-white shadow-sm"
                 style={{ height: "600px" }}
                 title="Order Receipt"
               />
             </div>
           )}
 
-          <div className="p-6 text-center">
+          <div className="p-6 text-center sm:p-10">
             <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
+              className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
               style={{ backgroundColor: `${brandColor}20` }}
             >
               <span style={{ color: brandColor, display: "inline-flex" }}>
                 <FiCheckCircle size={32} />
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Order Placed!</h2>
-            <p className="text-slate-500 mb-2">Your order number is:</p>
-            <p className="text-3xl font-bold mb-6" style={{ color: brandColor }}>
+            <h2 className="mb-2 text-2xl font-black text-[#2D2626]">Order placed!</h2>
+            <p className="mb-2 text-[#796E6B]">Your order number is:</p>
+            <p className="mb-6 text-3xl font-black" style={{ color: brandColor }}>
               {submittedOrderId}
             </p>
-            <p className="text-sm text-slate-500 mb-8">
+            <p className="mb-8 text-sm text-[#796E6B]">
               Show this receipt to the cashier when you are ready.
             </p>
 
-            <div className="space-y-3">
+            <div className="mx-auto max-w-sm space-y-3">
               <button
                 onClick={() => window.print()}
-                className="w-full flex items-center justify-center gap-2 text-white font-bold py-3 rounded-md transition-all"
-                style={{ backgroundColor: brandColor }}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-4 py-3 font-bold text-white shadow-sm transition hover:bg-[#B97873]"
               >
                 <FiPrinter size={20} /> Print Receipt
               </button>
@@ -506,12 +568,17 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 onClick={() => {
                   setOrderSubmitted(false);
                   setSubmittedOrderId("");
+                  setOrderType("dine-in");
+                  setDiscountType("none");
+                  setPaymentMethod("cash");
+                  setPaymentReference("");
                   setCustomerName("");
                   setTableNumber("");
                   setNotes("");
+                  setCart([]);
                   setReceiptHtml("");
                 }}
-                className="w-full text-slate-600 font-bold py-3 rounded-md transition-all bg-slate-100 hover:bg-slate-200"
+                className="min-h-12 w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] py-3 font-bold text-[#796E6B] transition hover:bg-[#FBF2F0]"
               >
                 New Order
               </button>
@@ -523,20 +590,19 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans pb-24">
-      <div className="w-full mx-auto bg-white min-h-screen shadow-sm relative px-4 sm:px-6 lg:px-8 md:max-w-5xl lg:max-w-6xl">
+    <div className="min-h-screen bg-[#FAF6F4] pb-24 font-sans text-[#2D2626]">
+      <div className="relative mx-auto min-h-screen w-full bg-[#FAF6F4] px-4 shadow-sm sm:px-6 lg:px-8 md:max-w-5xl lg:max-w-[1500px]">
         {modal.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-sm rounded-md bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-bold mb-2 text-slate-800">{modal.title}</h3>
-              <p className="text-slate-600 mb-6">{modal.message}</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/35 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl border border-[#E9DEDA] bg-[#FFFCFA] p-6 shadow-2xl">
+              <h3 className="mb-2 text-lg font-bold text-[#2D2626]">{modal.title}</h3>
+              <p className="mb-6 text-[#796E6B]">{modal.message}</p>
               <button
                 onClick={() => {
                   setModal({ ...modal, isOpen: false });
                   modal.onConfirm?.();
                 }}
-                className="w-full rounded-md px-4 py-3 font-semibold text-white transition-colors"
-                style={{ backgroundColor: brandColor }}
+                className="min-h-12 w-full rounded-xl bg-[#C98A84] px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-[#B97873]"
               >
                 OK
               </button>
@@ -544,27 +610,35 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
           </div>
         )}
 
-        <div className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between p-4">
-            <h1 className="text-xl font-bold text-slate-800">{shopInfo?.name || "Menu"}</h1>
+        <div className="sticky top-0 z-20 border-b border-[#E9DEDA] bg-[#FAF6F4]/95 shadow-[0_8px_24px_rgba(74,49,44,0.06)] backdrop-blur">
+          <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-[#C98A84] text-sm font-black text-white shadow-sm">
+                {shopInfo?.logo_url ? <img src={shopInfo.logo_url} alt="" className="h-full w-full object-cover" /> : "B"}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#A08F89]">Customer ordering</p>
+                <h1 className="mt-1 text-xl font-black text-[#2D2626]">{shopInfo?.name || "Menu"}</h1>
+              </div>
+            </div>
             <button
               onClick={() => setCartOpen(true)}
-              className="relative rounded-md p-2 transition-colors hover:bg-slate-100"
+              className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#E9DEDA] bg-white text-[#A76560] shadow-sm transition hover:bg-[#FBF2F0]"
               style={{ color: brandColor }}
             >
               <FiShoppingCart size={24} />
               {cart.length > 0 && (
-                <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+                <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#FAF6F4] bg-[#C98A84] text-[10px] font-bold text-white">
                   {cart.length}
                 </span>
               )}
             </button>
           </div>
 
-          <div className="px-4 pb-4">
+          <div className="mx-auto max-w-[1500px] px-4 pb-4 sm:px-6">
             <div className="relative">
               <FiSearch
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A08F89]"
                 size={18}
               />
               <input
@@ -572,16 +646,16 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 placeholder="Search products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-md border-transparent bg-slate-100 py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-xl border border-transparent bg-[#FBF2F0] py-3.5 pl-10 pr-4 text-base text-[#2D2626] outline-none transition-all placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
               />
             </div>
           </div>
 
-          <div className="px-4 pb-4 overflow-x-auto flex gap-2">
+          <div className="mx-auto flex max-w-[1500px] gap-2 overflow-x-auto px-4 pb-4 sm:px-6">
             <button
               onClick={() => setSelectedCategory("all")}
-              className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-all ${selectedCategory === "all" ? "text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-              style={selectedCategory === "all" ? { backgroundColor: brandColor } : undefined}
+              className={`min-h-11 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${selectedCategory === "all" ? "bg-[#C98A84] text-white shadow-sm hover:bg-[#B97873]" : "bg-white/70 text-[#796E6B] hover:bg-white hover:text-[#2D2626]"}`}
+              style={selectedCategory === "all" ? { boxShadow: "0 4px 12px #C98A8433" } : undefined}
             >
               All ({products.length})
             </button>
@@ -591,8 +665,8 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(String(category.id))}
-                  className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-all ${selectedCategory === String(category.id) ? "text-white shadow-md" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-                  style={selectedCategory === String(category.id) ? { backgroundColor: brandColor } : undefined}
+                  className={`min-h-11 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium capitalize transition-all ${selectedCategory === String(category.id) ? "bg-[#C98A84] text-white shadow-sm hover:bg-[#B97873]" : "bg-white/70 text-[#796E6B] hover:bg-white hover:text-[#2D2626]"}`}
+                  style={selectedCategory === String(category.id) ? { boxShadow: "0 4px 12px #C98A8433" } : undefined}
                 >
                   {category.name} ({count})
                 </button>
@@ -602,36 +676,37 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
         </div>
 
         {popularProduct && (
-          <section className="mx-4 mt-5 overflow-hidden border border-slate-200 bg-slate-950 text-white shadow-sm sm:mx-6 lg:mx-0">
+          <section className="mx-4 mt-5 overflow-hidden rounded-2xl border border-[#C98A84] bg-[#FBF2F0] text-[#2D2626] shadow-sm sm:mx-6 lg:mx-0">
             <div className="flex items-center gap-4 p-4 sm:p-5">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden bg-white/10 sm:h-20 sm:w-20">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-20 sm:w-20">
                 {popularProduct.image ? (
                   <img src={popularProduct.image} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <FiPackage size={28} className="text-white/50" />
+                  <FiPackage size={28} className="text-[#CDBDB7]" />
                 )}
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300">Popular right now</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C98A84]">Top seller this week</p>
                 <h2 className="mt-1 truncate text-lg font-black sm:text-xl">{popularProduct.name}</h2>
-                <p className="mt-1 text-sm text-white/65">Ordered {popularProduct.quantity} times in the last 30 days</p>
+                <p className="mt-1 text-sm text-[#796E6B]">Ordered {popularProduct.quantity} times this week</p>
               </div>
             </div>
           </section>
         )}
 
-        <div className="p-4 space-y-6">
+        <div className="p-4">
+          <div className="space-y-6">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12">
-              <FiPackage className="mx-auto text-slate-300 mb-3" size={48} />
-              <p className="text-slate-500 font-medium">No products found</p>
-              <p className="text-slate-400 text-sm">Try a different search term or category</p>
+              <FiPackage className="mx-auto mb-3 text-[#CDBDB7]" size={48} />
+              <p className="font-medium text-[#796E6B]">No products found</p>
+              <p className="text-sm text-[#A08F89]">Try a different search term or category</p>
             </div>
           ) : (
             <>
               {groupedProducts.map((category) => (
                 <div key={category.id}>
-                  <h2 className="text-lg font-bold text-slate-800 mb-3">{category.name}</h2>
+                  <h2 className="mb-3 text-lg font-bold text-[#2D2626]">{category.name}</h2>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {category.products.map((product) => {
                       const variants = getProductVariants(product);
@@ -644,31 +719,42 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                             if (hasStock) handleProductClick(product);
                           }}
                           aria-disabled={!hasStock}
-                          className={`flex flex-col overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm transition-all ${hasStock ? "cursor-pointer hover:border-[#bc9b7a] hover:shadow-md active:scale-[0.98]" : "cursor-not-allowed opacity-60 grayscale-[0.5]"}`}
+                          className={`flex flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_4px_18px_rgba(74,49,44,0.05)] transition-all ${hasStock ? "cursor-pointer border-[#E9DEDA] hover:-translate-y-0.5 hover:border-[#C98A84] hover:shadow-[0_10px_24px_rgba(74,49,44,0.10)] active:scale-[0.98]" : "cursor-not-allowed border-red-200 bg-red-50 opacity-75"}`}
                         >
-                          <div className="h-28 sm:h-32 md:h-36 bg-slate-100 relative shrink-0">
+                          <div className="relative h-28 shrink-0 bg-[#FBF2F0] sm:h-32 md:h-36">
                             {product.image ? (
                               <img src={product.image} alt={product.product_name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-300">
+                              <div className="flex h-full w-full items-center justify-center text-[#CDBDB7]">
                                 <FiPackage size={32} />
                               </div>
                             )}
                             {!hasStock && (
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <span className="bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded">
+                                <span className="rounded-lg bg-[#A65F58] px-2 py-1 text-[9px] font-bold text-white">
                                   SOLD OUT
                                 </span>
                               </div>
                             )}
                           </div>
-                          <div className="p-2.5 flex-1 flex flex-col justify-between">
-                            <h3 className="font-semibold text-slate-800 text-xs sm:text-sm leading-tight line-clamp-2 mb-1.5">
+                          <div className="flex flex-1 flex-col justify-between p-3">
+                            <h3 className="mb-1.5 line-clamp-2 text-sm font-bold leading-tight text-[#2D2626] sm:text-base">
                               {product.product_name}
                             </h3>
-                            <p className="font-bold text-xs sm:text-sm mt-auto" style={{ color: brandColor }}>
+                            <p className="font-bold text-sm mt-auto" style={{ color: brandColor }}>
                               {variants.length > 1 ? `From ₱${minPrice.toFixed(2)}` : `₱${minPrice.toFixed(2)}`}
                             </p>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (hasStock) handleProductClick(product);
+                              }}
+                              disabled={!hasStock}
+                              className="mt-3 min-h-11 w-full rounded-xl bg-[#C98A84] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#B97873] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {hasStock ? "Add" : "Sold out"}
+                            </button>
                           </div>
                         </div>
                       );
@@ -679,7 +765,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
               {uncategorizedProducts.length > 0 && (
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800 mb-3">Uncategorized</h2>
+                  <h2 className="mb-3 text-lg font-bold text-[#2D2626]">Uncategorized</h2>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {uncategorizedProducts.map((product) => {
                       const variants = getProductVariants(product);
@@ -692,33 +778,44 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                             if (hasStock) handleProductClick(product);
                           }}
                           aria-disabled={!hasStock}
-                          className={`flex flex-col overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm transition-all ${hasStock ? "cursor-pointer hover:border-[#bc9b7a] hover:shadow-md active:scale-[0.98]" : "cursor-not-allowed opacity-60 grayscale-[0.5]"}`}
+                          className={`flex flex-col overflow-hidden rounded-2xl border bg-white shadow-[0_4px_18px_rgba(74,49,44,0.05)] transition-all ${hasStock ? "cursor-pointer border-[#E9DEDA] hover:-translate-y-0.5 hover:border-[#C98A84] hover:shadow-[0_10px_24px_rgba(74,49,44,0.10)] active:scale-[0.98]" : "cursor-not-allowed border-red-200 bg-red-50 opacity-75"}`}
                         >
-                          <div className="h-28 sm:h-32 md:h-36 bg-slate-100 relative shrink-0">
+                          <div className="relative h-28 shrink-0 bg-[#FBF2F0] sm:h-32 md:h-36">
                             {product.image ? (
                               <img src={product.image} alt={product.product_name} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-300">
+                              <div className="flex h-full w-full items-center justify-center text-[#CDBDB7]">
                                 <FiPackage size={32} />
                               </div>
                             )}
                             {!hasStock && (
                               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <span className="bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded">
+                                <span className="rounded-lg bg-[#A65F58] px-2 py-1 text-[9px] font-bold text-white">
                                   SOLD OUT
                                 </span>
                               </div>
                             )}
                           </div>
-                          <div className="p-2.5 flex-1 flex flex-col justify-between">
-                            <h3 className="font-semibold text-slate-800 text-xs sm:text-sm leading-tight line-clamp-2 mb-1.5">
+                          <div className="flex flex-1 flex-col justify-between p-3">
+                            <h3 className="mb-1.5 line-clamp-2 text-sm font-bold leading-tight text-[#2D2626] sm:text-base">
                               {product.product_name}
                             </h3>
-                            <p className="font-bold text-xs sm:text-sm mt-auto" style={{ color: brandColor }}>
+                            <p className="font-bold text-sm mt-auto" style={{ color: brandColor }}>
                               {variants.length > 1 ? `From ₱${minPrice.toFixed(2)}` : `₱${minPrice.toFixed(2)}`}
                             </p>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (hasStock) handleProductClick(product);
+                              }}
+                              disabled={!hasStock}
+                              className="mt-3 min-h-11 w-full rounded-xl bg-[#C98A84] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#B97873] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {hasStock ? "Add" : "Sold out"}
+                            </button>
+                            </div>
                           </div>
-                        </div>
                       );
                     })}
                   </div>
@@ -726,15 +823,15 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
               )}
             </>
           )}
+          </div>
         </div>
 
         {cart.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-linear-to-t from-white via-white to-transparent pointer-events-none">
+          <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-30 bg-linear-to-t from-[#FAF6F4] via-[#FAF6F4] to-transparent p-4">
             <div className="w-full mx-auto pointer-events-auto md:max-w-3xl lg:max-w-4xl">
               <button
                 onClick={() => setCartOpen(true)}
-                className="flex w-full items-center justify-between rounded-md px-5 py-3.5 font-bold text-white shadow-lg transition-transform active:scale-[0.98]"
-                style={{ backgroundColor: brandColor }}
+                className="flex min-h-12 w-full items-center justify-between rounded-xl bg-[#C98A84] px-5 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#B97873] active:scale-[0.98]"
               >
                 <div className="flex items-center gap-2">
                   <span className="bg-white/20 px-2 py-0.5 rounded-md text-sm">{cart.length}</span>
@@ -747,12 +844,12 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
         )}
 
         {showVariantModal && selectedProduct && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-            <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-md bg-white sm:max-w-lg sm:rounded-md md:max-w-2xl">
-              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2D2626]/35 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+            <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-[#E9DEDA] bg-[#FFFCFA] shadow-2xl sm:max-w-lg sm:rounded-2xl md:max-w-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E9DEDA] bg-[#FFFCFA] p-4">
                 <div>
-                  <h3 className="font-bold text-lg text-slate-800">{selectedProduct.product_name}</h3>
-                  <p className="text-sm text-slate-500">Select options</p>
+                  <h3 className="text-lg font-black text-[#2D2626]">{selectedProduct.product_name}</h3>
+                  <p className="text-sm text-[#796E6B]">Select options</p>
                 </div>
                 <button
                   onClick={() => {
@@ -761,17 +858,17 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                     setSelectedVariant(null);
                     setSelectedAddOns({});
                   }}
-                  className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"
+                  className="min-h-11 min-w-11 rounded-xl bg-[#FBF2F0] text-[#796E6B] transition hover:bg-[#E9DEDA]"
                 >
                   <FiX size={20} />
                 </button>
               </div>
 
-              <div className="overflow-y-auto p-4 space-y-6 flex-1">
+              <div className="flex-1 space-y-6 overflow-y-auto p-4">
                 <div>
-                  <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                    <span className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-                    Size / Variant <span className="text-red-500 text-xs font-normal">*Required</span>
+                  <h4 className="mb-3 flex items-center gap-2 font-bold text-[#2D2626]">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FBF2F0] text-xs">1</span>
+                    Size / Variant <span className="text-xs font-normal text-[#A65F58]">*Required</span>
                   </h4>
                   <div className="space-y-2">
                     {getProductVariants(selectedProduct).map((variant) => {
@@ -782,10 +879,10 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           key={variant.id}
                           onClick={() => setSelectedVariant(variant)}
                           disabled={isOutOfStock}
-                          className={`flex w-full items-center justify-between rounded-md border-2 p-4 text-left transition-all ${isSelected ? "border-[#6c3030] bg-[#f3e3cf]" : isOutOfStock ? "cursor-not-allowed border-slate-100 bg-slate-50 opacity-50" : "border-slate-100 bg-white hover:border-[#bc9b7a]"}`}
+                          className={`flex min-h-12 w-full items-center justify-between rounded-xl border p-4 text-left transition-all ${isSelected ? "border-[#C98A84] bg-[#FBF2F0]" : isOutOfStock ? "cursor-not-allowed border-red-200 bg-red-50 opacity-75" : "border-[#E9DEDA] bg-white hover:border-[#C98A84] hover:bg-[#FBF2F0]"}`}
                           style={isSelected ? { borderColor: brandColor } : undefined}
                         >
-                          <span className="font-medium text-slate-800">{variant.name}</span>
+                          <span className="font-semibold text-[#2D2626]">{variant.name}</span>
                           <span className="font-bold" style={{ color: isOutOfStock ? "#94a3b8" : brandColor }}>
                             {isOutOfStock ? "Sold Out" : `₱${Number(variant.price).toFixed(2)}`}
                           </span>
@@ -797,9 +894,9 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
                 {addOns.length > 0 && (
                   <div>
-                    <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                      <span className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
-                      Add-ons <span className="text-slate-400 text-xs font-normal">Optional</span>
+                    <h4 className="mb-3 flex items-center gap-2 font-bold text-[#2D2626]">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FBF2F0] text-xs">2</span>
+                      Add-ons <span className="text-xs font-normal text-[#A08F89]">Optional</span>
                     </h4>
                     <div className="space-y-2">
                       {addOns.map((addon) => {
@@ -810,19 +907,19 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                             onClick={(event) => {
                               if (isAddOnOutOfStock(addon)) event.preventDefault();
                             }}
-                            className={`flex items-center justify-between rounded-md border-2 p-4 transition-all ${isAddOnOutOfStock(addon) ? "cursor-not-allowed border-red-200 bg-red-50 opacity-60" : isSelected ? "cursor-pointer border-[#6c3030] bg-[#f3e3cf]" : "cursor-pointer border-slate-100 bg-white hover:border-[#bc9b7a]"}`}
+                            className={`flex min-h-12 items-center justify-between rounded-xl border p-4 transition-all ${isAddOnOutOfStock(addon) ? "cursor-not-allowed border-red-200 bg-red-50 opacity-75" : isSelected ? "cursor-pointer border-[#C98A84] bg-[#FBF2F0]" : "cursor-pointer border-[#E9DEDA] bg-white hover:border-[#C98A84] hover:bg-[#FBF2F0]"}`}
                             style={isSelected ? { borderColor: brandColor } : undefined}
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? "bg-[#6c3030] border-[#6c3030]" : "border-slate-300"}`}
+                                className={`flex h-5 w-5 items-center justify-center rounded border ${isSelected ? "border-[#C98A84] bg-[#C98A84]" : "border-[#CDBDB7]"}`}
                                 style={isSelected ? { backgroundColor: brandColor, borderColor: brandColor } : undefined}
                               >
                                 {isSelected && <FiCheckCircle size={14} className="text-white" />}
                               </div>
-                              <span className="font-medium text-slate-800">{addon.name}</span>
+                              <span className="font-semibold text-[#2D2626]">{addon.name}</span>
                             </div>
-                            <span className="font-semibold text-slate-600">+₱{Number(addon.price).toFixed(2)}</span>
+                            <span className="font-semibold text-[#796E6B]">+₱{Number(addon.price).toFixed(2)}</span>
                             <input
                               type="checkbox"
                               className="hidden"
@@ -843,7 +940,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 )}
               </div>
 
-              <div className="p-4 border-t border-slate-100 bg-white sticky bottom-0">
+              <div className="sticky bottom-0 border-t border-[#E9DEDA] bg-[#FFFCFA] p-4">
                 <button
                   onClick={() => {
                     if (!selectedVariant) {
@@ -852,15 +949,12 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                     }
                     const selectedAddOnsArray = Object.entries(selectedAddOns)
                       .filter(([_, selected]) => selected)
-                      .map(([addonId]) => addOns.find((a) => a.id === addonId))
+                      .map(([addonId]) => addOns.find((addon) => String(addon.id) === addonId))
                       .filter((addon): addon is AddOn => Boolean(addon));
                     addToCart(selectedProduct, selectedVariant, selectedAddOnsArray);
                   }}
-                  className="w-full rounded-md py-3.5 font-bold text-white transition-all active:scale-[0.98]"
-                  style={{
-                    backgroundColor: brandColor,
-                    opacity: selectedVariant ? 1 : 0.5,
-                  }}
+                  className="min-h-12 w-full rounded-xl bg-[#C98A84] py-3.5 font-bold text-white shadow-sm transition hover:bg-[#B97873] active:scale-[0.98]"
+                  style={{ opacity: selectedVariant ? 1 : 0.5 }}
                 >
                   Add to Cart • ₱
                   {selectedVariant
@@ -868,7 +962,7 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                         Number(selectedVariant.price) +
                         Object.entries(selectedAddOns)
                           .filter(([_, s]) => s)
-                          .reduce((acc, [id]) => acc + (Number(addOns.find((a) => a.id === id)?.price) || 0), 0)
+                          .reduce((acc, [id]) => acc + (Number(addOns.find((addon) => String(addon.id) === id)?.price) || 0), 0)
                       ).toFixed(2)
                     : "0.00"}
                 </button>
@@ -877,27 +971,88 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
           </div>
         )}
 
+        {confirmingOrder && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#2D2626]/35 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl border border-[#E9DEDA] bg-[#FFFCFA] p-6 shadow-2xl">
+              <div className="mb-5 flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#C98A84]">Final check</p>
+                  <h2 className="mt-1 text-2xl font-black text-[#2D2626]">Confirm order</h2>
+                </div>
+                <button onClick={() => setConfirmingOrder(false)} className="min-h-11 min-w-11 rounded-xl border border-[#E9DEDA] bg-[#FBF2F0] text-[#796E6B] transition hover:bg-[#E9DEDA]">
+                  <FiX className="mx-auto" size={20} />
+                </button>
+              </div>
+              <div className="mb-5 max-h-56 space-y-2 overflow-y-auto rounded-xl bg-[#FAF6F4] p-4">
+                {cart.map((item) => (
+                  <div key={item.id} className="flex justify-between gap-4 text-sm">
+                    <span>
+                      <strong>{item.quantity}x</strong> {item.product_name} · {item.variant_name}
+                      {item.addOns.length > 0 && (
+                        <span className="block text-xs text-[#796E6B]">
+                          Add-ons: {item.addOns.map((addOn) => addOn.name).join(", ")}
+                        </span>
+                      )}
+                    </span>
+                    <strong>₱{((Number(item.price) + item.addOns.reduce((sum, addon) => sum + Number(addon.price || 0), 0)) * item.quantity).toFixed(2)}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="mb-5 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-[#E9DEDA] p-3">
+                  <p className="text-[#796E6B]">Order type</p>
+                  <p className="font-black">{orderType === "dine-in" ? `Dine-in · Table ${tableNumber}` : "Takeout"}</p>
+                </div>
+                <div className="rounded-xl border border-[#E9DEDA] p-3">
+                  <p className="text-[#796E6B]">Customer</p>
+                  <p className="truncate font-black">{customerName}</p>
+                </div>
+                <div className="rounded-xl border border-[#E9DEDA] p-3">
+                  <p className="text-[#796E6B]">Discount</p>
+                  <p className="font-black">{discountType === "none" ? "None" : `${discountType.toUpperCase()} · ₱${discountAmount.toFixed(2)}`}</p>
+                </div>
+                <div className="rounded-xl border border-[#E9DEDA] p-3">
+                  <p className="text-[#796E6B]">Payment</p>
+                  <p className="font-black">{paymentMethod === "online" ? "Online" : "Cash"}</p>
+                </div>
+              </div>
+              <div className="mb-5 flex items-center justify-between border-t border-[#E9DEDA] pt-4">
+                <span className="font-bold text-[#796E6B]">Total</span>
+                <span className="text-2xl font-black" style={{ color: brandColor }}>₱{calculateTotal().toFixed(2)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setConfirmingOrder(false)} disabled={isSubmitting} className="min-h-14 rounded-xl border border-[#E9DEDA] bg-[#FBF2F0] font-bold text-[#796E6B] transition hover:bg-[#E9DEDA]">
+                  Go back
+                </button>
+                <button onClick={submitOrder} disabled={isSubmitting} className="min-h-14 rounded-xl bg-[#C98A84] font-bold text-white shadow-sm transition hover:bg-[#B97873] disabled:opacity-60">
+                  {isSubmitting ? "Sending..." : "Send to kitchen"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {cartOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md sm:max-w-lg md:max-w-2xl h-full flex flex-col shadow-2xl">
-              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                <h2 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+          <div className="fixed inset-0 z-50 flex justify-end bg-[#2D2626]/35 backdrop-blur-sm">
+            <div className="flex h-full w-full max-w-md flex-col border-l border-[#E9DEDA] bg-[#FFFCFA] shadow-2xl sm:max-w-lg md:max-w-2xl">
+              <div className="flex items-center justify-between border-b border-[#E9DEDA] bg-[#FFFCFA] p-4">
+                <h2 className="flex items-center gap-2 text-xl font-black text-[#2D2626]">
                   <FiShoppingCart size={24} style={{ color: brandColor }} />
                   Your Cart
                 </h2>
                 <button
                   onClick={() => setCartOpen(false)}
-                  className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"
+                  className="min-h-11 min-w-11 rounded-xl bg-[#FBF2F0] text-[#796E6B] transition hover:bg-[#E9DEDA]"
                 >
                   <FiX size={20} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50">
+              <div className="flex-1 space-y-6 overflow-y-auto bg-[#FAF6F4] p-4">
                 {cart.length === 0 ? (
                   <div className="text-center py-12">
-                    <FiShoppingCart className="mx-auto text-slate-300 mb-3" size={48} />
-                    <p className="text-slate-500 font-medium">Your cart is empty</p>
+                    <FiShoppingCart className="mx-auto mb-3 text-[#CDBDB7]" size={48} />
+                    <p className="font-medium text-[#796E6B]">Your cart is empty</p>
                     <button
                       onClick={() => setCartOpen(false)}
                       className="mt-4 text-sm font-bold hover:underline"
@@ -914,43 +1069,43 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           (Number(item.price) + item.addOns.reduce((a, b) => a + (Number(b?.price) || 0), 0)) *
                           item.quantity;
                         return (
-                            <div key={item.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm">
-                            <div className="flex justify-between items-start mb-2">
+                            <div key={item.id} className="rounded-2xl border border-[#E9DEDA] bg-white p-4 shadow-sm">
+                            <div className="mb-2 flex items-start justify-between">
                               <div>
-                                <h4 className="font-bold text-slate-800">{item.product_name}</h4>
-                                <p className="text-sm text-slate-500">{item.variant_name}</p>
+                                <h4 className="font-bold text-[#2D2626]">{item.product_name}</h4>
+                                <p className="text-sm text-[#796E6B]">{item.variant_name}</p>
                                 {item.addOns.some((addon) => Boolean(addon)) && (
                                   <div className="mt-1 space-y-0.5">
                                     {item.addOns.filter((addon): addon is AddOn => Boolean(addon)).map((addon) => (
-                                      <p key={addon.id} className="text-xs text-slate-400 flex items-center gap-1">
+                                      <p key={addon.id} className="flex items-center gap-1 text-xs text-[#A08F89]">
                                         <FiPlus size={10} /> {addon.name} (+₱{Number(addon.price)})
                                       </p>
                                     ))}
                                   </div>
                                 )}
                               </div>
-                              <p className="font-bold text-slate-800">₱{itemTotal.toFixed(2)}</p>
+                              <p className="font-bold text-[#2D2626]">₱{itemTotal.toFixed(2)}</p>
                             </div>
 
-                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-50">
+                            <div className="mt-4 flex items-center justify-between border-t border-[#FBF2F0] pt-3">
                               <button
                                 onClick={() => removeFromCart(item.id)}
-                                className="text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-colors flex items-center gap-1 text-sm font-medium"
+                                className="flex min-h-10 items-center gap-1 rounded-xl px-2 text-sm font-medium text-[#A65F58] transition hover:bg-red-50"
                               >
                                 <FiTrash2 size={16} /> Remove
                               </button>
 
-                              <div className="flex items-center gap-3 bg-slate-100 rounded-md p-1">
+                              <div className="flex items-center gap-3 rounded-xl bg-[#FBF2F0] p-1">
                                 <button
                                   onClick={() => updateQuantity(item.id, -1)}
-                                  className="w-7 h-7 bg-white rounded-md shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900"
+                                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-[#796E6B] shadow-sm hover:text-[#2D2626]"
                                 >
                                   <FiMinus size={14} />
                                 </button>
-                                <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
+                                <span className="w-4 text-center text-sm font-bold">{item.quantity}</span>
                                 <button
                                   onClick={() => updateQuantity(item.id, 1)}
-                                  className="w-7 h-7 bg-white rounded-md shadow-sm flex items-center justify-center text-slate-600 hover:text-slate-900"
+                                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-[#796E6B] shadow-sm hover:text-[#2D2626]"
                                 >
                                   <FiPlus size={14} />
                                 </button>
@@ -961,22 +1116,76 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                       })}
                     </div>
 
-                    <div className="space-y-4 rounded-md border border-slate-100 bg-white p-5 shadow-sm">
-                      <h3 className="font-bold text-slate-800">Customer Details</h3>
+                    <div className="space-y-4 rounded-2xl border border-[#E9DEDA] bg-white p-5 shadow-sm">
+                      <h3 className="font-bold text-[#2D2626]">Customer details</h3>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["dine-in", "takeout"] as const).map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => setOrderType(type)}
+                            className={`min-h-12 rounded-xl text-sm font-bold ${orderType === type ? "bg-[#C98A84] text-white shadow-sm hover:bg-[#B97873]" : "bg-[#FBF2F0] text-[#796E6B] hover:bg-[#E9DEDA]"}`}
+                          >
+                            {type === "dine-in" ? "Dine-in" : "Takeout"}
+                          </button>
+                        ))}
+                      </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
+                        <label className="mb-1 block text-sm font-semibold text-[#2D2626]">Discount</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(["none", "senior", "pwd"] as const).map((type) => (
+                            <button
+                              key={type}
+                              onClick={() => setDiscountType(type)}
+                              className={`min-h-11 rounded-xl text-sm font-bold uppercase ${discountType === type ? "bg-[#C98A84] text-white shadow-sm hover:bg-[#B97873]" : "bg-[#FBF2F0] text-[#796E6B] hover:bg-[#E9DEDA]"}`}
+                            >
+                              {type === "none" ? "None" : type}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-sm font-semibold text-[#2D2626]">Payment method</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(["cash", "online"] as const).map((method) => (
+                            <button
+                              key={method}
+                              onClick={() => setPaymentMethod(method)}
+                              className={`min-h-11 rounded-xl text-sm font-bold capitalize ${paymentMethod === method ? "bg-[#C98A84] text-white shadow-sm hover:bg-[#B97873]" : "bg-[#FBF2F0] text-[#796E6B] hover:bg-[#E9DEDA]"}`}
+                            >
+                              {method}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {paymentMethod === "online" && (
+                        <div>
+                          <label className="mb-1 block text-sm font-semibold text-[#2D2626]">Payment reference *</label>
+                          <input
+                            value={paymentReference}
+                            onChange={(event) => setPaymentReference(event.target.value)}
+                            placeholder="Reference number"
+                            className="min-h-12 w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-4 py-2.5 text-[#2D2626] outline-none transition-all placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="mb-1 block text-sm font-semibold text-[#2D2626]">Name *</label>
                         <input
                           type="text"
                           value={customerName}
                           onChange={(e) => setCustomerName(e.target.value)}
                           placeholder="Juan Dela Cruz"
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                          className="min-h-12 w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-4 py-2.5 text-[#2D2626] outline-none transition-all placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Table Number</label>
+                      {orderType === "dine-in" && <div>
+                        <label className="mb-1 block text-sm font-semibold text-[#2D2626]">Table number</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -985,18 +1194,18 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                           value={tableNumber}
                           onChange={(e) => setTableNumber(e.target.value.replace(/\D/g, ""))}
                           placeholder="e.g. 12"
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                          className="min-h-12 w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-4 py-2.5 text-[#2D2626] outline-none transition-all placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
                         />
-                      </div>
+                      </div>}
 
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Notes (Optional)</label>
+                        <label className="mb-1 block text-sm font-semibold text-[#2D2626]">Notes (optional)</label>
                         <textarea
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
                           placeholder="Less ice, extra sugar..."
                           rows={2}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
+                          className="min-h-20 w-full resize-none rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-4 py-2.5 text-[#2D2626] outline-none transition-all placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:ring-2 focus:ring-[#C98A84]/20"
                         />
                       </div>
                     </div>
@@ -1005,20 +1214,19 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
               </div>
 
               {cart.length > 0 && (
-                <div className="p-4 border-t border-slate-100 bg-white">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-slate-500 font-medium">Total Amount</span>
-                    <span className="text-2xl font-bold" style={{ color: brandColor }}>
+                <div className="border-t border-[#E9DEDA] bg-[#FFFCFA] p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="font-medium text-[#796E6B]">Total amount</span>
+                    <span className="text-2xl font-black" style={{ color: brandColor }}>
                       ₱{calculateTotal().toFixed(2)}
                     </span>
                   </div>
                   <button
                     onClick={handleCheckout}
                     disabled={!customerName.trim()}
-                    className="w-full rounded-md py-3.5 font-bold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ backgroundColor: brandColor }}
+                    className="min-h-12 w-full rounded-xl bg-[#C98A84] py-3.5 font-bold text-white shadow-sm transition hover:bg-[#B97873] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Place Order
+                    Review Order
                   </button>
                 </div>
               )}

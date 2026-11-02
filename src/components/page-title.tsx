@@ -23,20 +23,31 @@ export default function PageTitle() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const shopName = localStorage.getItem("shopName");
-    const title = getPageTitle(pathname);
-    document.title = shopName ? `${title} | ${shopName}` : `${title} | BrewTrack`;
+    const updateBranding = () => {
+      const shopName = localStorage.getItem("shopName");
+      const title = getPageTitle(pathname);
+      document.title = shopName ? `${title} | ${shopName}` : `${title} | BrewTrack`;
 
-    const logo = localStorage.getItem("shopLogo");
-    if (!logo) return;
+      const logo = localStorage.getItem("shopLogo");
+      if (!logo) return;
 
-    let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (!icon) {
-      icon = document.createElement("link");
-      icon.rel = "icon";
-      document.head.appendChild(icon);
-    }
-    icon.href = logo;
+      let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (!icon) {
+        icon = document.createElement("link");
+        icon.rel = "icon";
+        document.head.appendChild(icon);
+      }
+      icon.href = logo;
+    };
+
+    updateBranding();
+    window.addEventListener("storage", updateBranding);
+    window.addEventListener("brewtrack-shop-updated", updateBranding);
+
+    return () => {
+      window.removeEventListener("storage", updateBranding);
+      window.removeEventListener("brewtrack-shop-updated", updateBranding);
+    };
   }, [pathname]);
 
   return null;

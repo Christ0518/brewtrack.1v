@@ -7,7 +7,6 @@ import api_links from "@/config/fetch_links/api_links.json";
 import { FiShoppingCart, FiSearch, FiX, FiTrash2, FiPlus, FiMinus, FiArrowLeft, FiPackage, FiMenu, FiClock } from "react-icons/fi";
 import { buildBarceloReceiptHtml } from "@/components/receipt/barcelo";
 import { buildGoodcoffeeReceiptHtml } from "@/components/receipt/goodcoffee";
-import { getShopTheme } from "@/lib/theme";
 
 interface CashierUser {
   id: string;
@@ -114,6 +113,8 @@ export default function CashierDisplay() {
   const [customerName, setCustomerName] = useState("");
   const [notes, setNotes] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
+  const [paymentReference, setPaymentReference] = useState("");
   const [orderType, setOrderType] = useState<"dine-in" | "takeout">("dine-in");
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -123,6 +124,15 @@ export default function CashierDisplay() {
   const [showCategories, setShowCategories] = useState(true);
   const [showCart, setShowCart] = useState(true);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [originalEditState, setOriginalEditState] = useState<{
+    cart: CartItem[];
+    customerName: string;
+    notes: string;
+    editReason: string;
+    amountPaid: string;
+    paymentMethod: "cash" | "online";
+    paymentReference: string;
+  } | null>(null);
   const [editReason, setEditReason] = useState("");
   const [editAdminPassword, setEditAdminPassword] = useState("");
   const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
@@ -133,11 +143,11 @@ export default function CashierDisplay() {
     title: "",
     message: "",
   });
-  const brandColor = getShopTheme(userData?.shop_id).accentColor;
+  const brandColor = "#C98A84";
 
-  const getProductVariants = (product: Product) => product.tbl_product_variants || product.variants || [];
+  const getProductVariants = (product: Product) => product.variants ?? product.tbl_product_variants ?? [];
 
-  const getVariantStock = (variant: Variant) => Number(variant.calculated_stock ?? variant.quantity ?? 0);
+  const getVariantStock = (variant: Variant) => Number(variant.quantity ?? 0);
 
   const isAddOnOutOfStock = (addon: AddOn) => {
     const quantity = Number(addon.quantity);
@@ -234,10 +244,7 @@ export default function CashierDisplay() {
         setProducts(
           normalizedProducts
             .filter((product: Product) => !isProductDeleted(product))
-            .map((product: Product) => ({
-              ...product,
-              tbl_product_variants: product.tbl_product_variants || product.variants || [],
-            }))
+            .map((product: Product) => ({ ...product }))
         );
 
         // Load add-ons
@@ -280,10 +287,10 @@ export default function CashierDisplay() {
         variant_name: item.variant_name || "Default",
         price: Number(item.price) || 0,
         quantity: Number(item.quantity) || 1,
-        discount_type: "none",
-        discount: 0,
+        discount_type: item.discount_type || "none",
+        discount: Number(item.discount) || 0,
         addOns: [],
-        orderType: "dine-in",
+        orderType: order.order_type === "takeout" ? "takeout" : "dine-in",
       }));
 
       setEditingOrderId(String(order.id));
@@ -291,6 +298,18 @@ export default function CashierDisplay() {
       setCustomerName(order.customer_name || "Walk-in");
       setNotes(order.notes || "");
       setEditReason(order.edit_reason || "");
+      setOriginalEditState({
+        cart: editItems.map((item) => ({ ...item, addOns: [...item.addOns] })),
+        customerName: order.customer_name || "Walk-in",
+        notes: order.notes || "",
+        editReason: order.edit_reason || "",
+        amountPaid: order.paid === undefined || order.paid === null ? "" : String(order.paid),
+        paymentMethod: order.payment_method === "online" ? "online" : "cash",
+        paymentReference: order.payment_reference || "",
+      });
+      setAmountPaid(order.paid === undefined || order.paid === null ? "" : String(order.paid));
+      setPaymentMethod(order.payment_method === "online" ? "online" : "cash");
+      setPaymentReference(order.payment_reference || "");
       setShowCart(true);
       sessionStorage.removeItem("cashierEditOrder");
     } catch (error) {
@@ -511,6 +530,21 @@ export default function CashierDisplay() {
     return calculateSubtotal();
   };
 
+  const cancelEdit = () => {
+    if (originalEditState) {
+      setCart(originalEditState.cart.map((item) => ({ ...item, addOns: [...item.addOns] })));
+      setCustomerName(originalEditState.customerName);
+      setNotes(originalEditState.notes);
+      setEditReason(originalEditState.editReason);
+      setAmountPaid(originalEditState.amountPaid);
+      setPaymentMethod(originalEditState.paymentMethod);
+      setPaymentReference(originalEditState.paymentReference);
+    }
+    setEditingOrderId(null);
+    setOriginalEditState(null);
+    sessionStorage.removeItem("cashierEditOrder");
+  };
+
   const handleCheckout = async (providedAdminPassword?: string) => {
     if (cart.length === 0) {
       showModal("error", "Empty Cart", "Please add items to cart");
@@ -522,31 +556,13 @@ export default function CashierDisplay() {
       return;
     }
 
-    const addOnRequirements = new Map<string, number>();
-    cart.forEach((item) => {
-      item.addOns.forEach((addon) => {
-        const required = (Number(addon.quantity_per_item) || 1) * item.quantity;
-        addOnRequirements.set(String(addon.id), (addOnRequirements.get(String(addon.id)) || 0) + required);
-      });
-    });
-
-    const unavailableAddOn = Array.from(addOnRequirements.entries()).find(([addonId, required]) => {
-      const addon = addOns.find((item) => String(item.id) === addonId);
-      return !addon || isAddOnOutOfStock(addon) || Number(addon.quantity) < required;
-    });
-
-    if (unavailableAddOn) {
-      const addon = addOns.find((item) => String(item.id) === unavailableAddOn[0]);
-      showModal(
-        "error",
-        "Add-On Out of Stock",
-        `${addon?.name || "Selected add-on"} does not have enough stock for this order.`
-      );
+    if (!customerName.trim()) {
+      showModal("error", "Customer Name Required", "Please enter customer name");
       return;
     }
 
-    if (!customerName.trim()) {
-      showModal("error", "Customer Name Required", "Please enter customer name");
+    if (paymentMethod === "online" && !paymentReference.trim()) {
+      showModal("error", "Payment Reference Required", "Please enter the online payment reference.");
       return;
     }
 
@@ -575,6 +591,8 @@ export default function CashierDisplay() {
             edit_reason: editReason.trim(),
             paid: amountPaid ? Number(amountPaid) : total,
             change: amountPaid ? Number(amountPaid) - total : 0,
+            payment_method: paymentMethod,
+            payment_reference: paymentMethod === "online" ? paymentReference.trim() : null,
             items: cart.map((item) => ({
               variant_id: item.variant_id,
               quantity: item.quantity,
@@ -603,6 +621,8 @@ export default function CashierDisplay() {
             })),
             paid: amountPaid ? Number(amountPaid) : total,
             change: amountPaid ? Number(amountPaid) - total : 0,
+            payment_method: paymentMethod,
+            payment_reference: paymentMethod === "online" ? paymentReference.trim() : null,
           };
 
       const response = await fetch(api_links.tbl_orders, {
@@ -631,6 +651,8 @@ export default function CashierDisplay() {
 
         setCart([]);
         setAmountPaid("");
+        setPaymentMethod("cash");
+        setPaymentReference("");
         setCustomerName("");
         setNotes("");
         setEditingOrderId(null);
@@ -639,7 +661,21 @@ export default function CashierDisplay() {
       });
     } catch (error: any) {
       console.error("Checkout error:", error);
-      showModal("error", "Checkout Failed", error.message || "Failed to create order");
+      const message = error.message || "Failed to create order";
+      showModal(
+        "error",
+        message.startsWith("Not enough inventory.") || message.startsWith("Not enough ingredients.")
+          ? "Not Enough Ingredients"
+          : "Checkout Failed",
+        message
+      );
+      if (editingOrderId && originalEditState) {
+        setCart(originalEditState.cart.map((item) => ({ ...item, addOns: [...item.addOns] })));
+        setCustomerName(originalEditState.customerName);
+        setNotes(originalEditState.notes);
+        setEditReason(originalEditState.editReason);
+        setAmountPaid(originalEditState.amountPaid);
+      }
     }
   };
 
@@ -721,30 +757,29 @@ export default function CashierDisplay() {
 
   // Helper function to build category button classes
   const getCategoryButtonClass = (categoryId: string) => {
-    const isSelected = selectedCategory === categoryId;
-    return isSelected
-      ? "text-white"
-      : "bg-slate-100 text-slate-700 hover:bg-[#6c3030] hover:text-white";
+    return selectedCategory === categoryId
+      ? "bg-[#C98A84] text-white shadow-sm"
+      : "bg-white/70 text-[#796E6B] hover:bg-white hover:text-[#2D2626]";
   };
 
   const getCategoryButtonStyle = (categoryId: string) => {
     return selectedCategory === categoryId
-      ? { backgroundColor: brandColor, boxShadow: `0 4px 12px ${brandColor}55` }
+      ? { backgroundColor: brandColor, boxShadow: "0 4px 12px #C98A8433" }
       : undefined;
   };
 
   // Helper function to build product card classes
   const getProductCardClass = (hasStock: boolean) => {
     return hasStock
-      ? "cursor-pointer shadow-sm hover:border-[#bc9b7a] hover:shadow-md"
-      : "cursor-not-allowed bg-red-50 opacity-75 shadow-sm";
+      ? "cursor-pointer border border-[#E9DEDA] bg-white shadow-[0_4px_18px_rgba(74,49,44,0.05)] hover:-translate-y-0.5 hover:border-[#C98A84] hover:shadow-[0_10px_24px_rgba(74,49,44,0.10)]"
+      : "cursor-not-allowed border border-red-200 bg-red-50 opacity-75 shadow-sm";
   };
 
   // Helper function to build variant button classes
   const getVariantButtonClass = (isSelected: boolean, isOutOfStock: boolean) => {
     if (isOutOfStock) return "bg-red-50 border-red-300 text-red-700 opacity-75 cursor-not-allowed";
-    if (isSelected) return "border-[#6c3030] bg-[#f3e3cf]";
-    return "bg-white border-slate-300 hover:border-[#bc9b7a] hover:bg-[#f8f1e8]";
+    if (isSelected) return "border-[#C98A84] bg-[#FBF2F0]";
+    return "bg-white border-[#E9DEDA] hover:border-[#C98A84] hover:bg-[#FBF2F0]";
   };
 
   const pendingOrderCount = customerOrders.length;
@@ -756,30 +791,31 @@ export default function CashierDisplay() {
 
   if (loading || !userData) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF6F4]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading cashier interface...</p>
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[#C98A84]"></div>
+        <p className="text-[#796E6B]">Loading cashier interface...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#f4f6f8] md:flex-row">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#FAF6F4] text-[#2D2626] md:flex-row">
       {/* Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm border border-slate-200 bg-white p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold text-slate-900">{modal.title}</h2>
-            <p className="mb-6 text-slate-600">{modal.message}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-[#E9DEDA] bg-[#FFFCFA] p-6 shadow-2xl">
+            <h2 className="mb-2 text-lg font-bold text-[#2D2626]">{modal.title}</h2>
+            <p className="mb-6 text-[#796E6B]">
+              {modal.message}
+            </p>
             <button
               onClick={() => {
                 setModal({ ...modal, isOpen: false });
                 modal.onConfirm?.();
               }}
-              className="w-full px-4 py-2 font-semibold text-white"
-              style={{ backgroundColor: brandColor }}
+              className="min-h-12 w-full rounded-xl bg-[#C98A84] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#B97873]"
             >
               OK
             </button>
@@ -789,10 +825,10 @@ export default function CashierDisplay() {
 
       {showEditPasswordModal && editingOrderId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm border border-slate-200 bg-white p-6 shadow-xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-600">Admin authorization</p>
+          <div className="w-full max-w-sm rounded-2xl border border-[#E9DEDA] bg-[#FFFCFA] p-6 shadow-xl">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A65F58]">Order edit authorization</p>
             <h2 className="mt-1 text-xl font-black text-slate-950">Save order changes</h2>
-            <p className="mt-2 text-sm text-slate-500">Enter an admin account password to update this order.</p>
+            <p className="mt-2 text-sm text-slate-500">Enter an administrator password to authorize this order edit.</p>
             <input
               type="password"
               value={editAdminPassword}
@@ -800,10 +836,10 @@ export default function CashierDisplay() {
               placeholder="Admin password"
               autoFocus
               autoComplete="current-password"
-              className="mt-5 w-full border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-blue-600"
+              className="mt-5 w-full rounded-xl border border-[#E9DEDA] px-3 py-2.5 text-sm outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20"
             />
             <div className="mt-5 flex gap-2">
-              <button type="button" onClick={() => setShowEditPasswordModal(false)} className="flex-1 border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={() => setShowEditPasswordModal(false)} className="min-h-12 flex-1 rounded-xl border border-[#E9DEDA] px-4 py-2.5 text-sm font-bold text-[#796E6B] hover:bg-[#F6EFEC]">Cancel</button>
               <button
                 type="button"
                 onClick={() => {
@@ -811,7 +847,7 @@ export default function CashierDisplay() {
                   void handleCheckout(editAdminPassword);
                 }}
                 disabled={!editAdminPassword || cart.some((item) => item.quantity === 0)}
-                className="flex-1 bg-[#16834b] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#116b3d] disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="min-h-12 flex-1 rounded-xl bg-[#C98A84] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#B97873] disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 Save changes
               </button>
@@ -821,70 +857,90 @@ export default function CashierDisplay() {
       )}
 
       {/* Categories Sidebar */}
-      <div className={`${showCategories ? "flex" : "hidden"} max-h-44 w-full flex-col overflow-hidden border-b border-[#6c3030] bg-[#35231d] text-white shadow-xl md:max-h-none md:w-40 md:shrink-0 md:border-b-0 md:border-r lg:w-56`}>
-        <div className="border-b border-white/10 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">{userData?.role?.trim() || "User"} workspace</p>
-          <h2 className="mt-1 truncate text-lg font-black">{shopInfo?.name || "BrewTrack"}</h2>
-          <p className="mt-1 text-xs text-white/55">Build an order</p>
-        </div>
-
-        <div className="flex flex-1 gap-1 overflow-x-auto overflow-y-hidden p-3 md:block md:space-y-1 md:overflow-x-hidden md:overflow-y-auto">
+      <div className={`${showCategories ? "flex max-h-36 w-full md:max-h-none md:w-56" : "hidden md:flex md:w-20"} shrink-0 flex-col overflow-hidden border-b border-[#E2D6D2] bg-[#ECE6E2] text-[#2D2626] shadow-[0_8px_24px_rgba(74,49,44,0.06)] md:border-b-0 md:border-r md:border-[#E2D6D2] md:py-3`}>
+        <div className="border-b border-[#DCD0CC] p-3 md:px-3 md:py-4">
           <button
-            onClick={() => setSelectedCategory("all")}
-            className={`w-max shrink-0 px-3 py-2 text-left text-sm font-semibold transition-all md:w-full ${getCategoryButtonClass("all")}`}
-            style={getCategoryButtonStyle("all")}
+            type="button"
+            onClick={() => setShowCategories((visible) => !visible)}
+            aria-label={showCategories ? "Collapse categories sidebar" : "Expand categories sidebar"}
+            aria-expanded={showCategories}
+            title={showCategories ? "Collapse menu" : "Expand menu"}
+            className={`flex min-h-12 w-full items-center gap-3 rounded-xl text-left transition hover:bg-white/70 ${showCategories ? "px-2.5" : "justify-center px-1"}`}
           >
-            All Products ({products.length})
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C98A84] text-white shadow-sm">
+              <FiPackage size={20} />
+            </span>
+            {showCategories && (
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-black">{shopInfo?.name || "BrewTrack"}</span>
+                <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-[0.16em] text-[#8D7E79]">
+                  {userData?.role?.trim() || "User"} register
+                </span>
+              </span>
+            )}
           </button>
-
-          {categories.map((category) => {
-            const count = products.filter((p) => p.category_id === category.id).length;
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(String(category.id))}
-                className={`w-max shrink-0 px-3 py-2 text-left text-sm font-medium capitalize transition-all md:w-full ${getCategoryButtonClass(String(category.id))}`}
-                style={getCategoryButtonStyle(String(category.id))}
-              >
-                {category.name} ({count})
-              </button>
-            );
-          })}
         </div>
 
-        <div className="border-t border-white/10 p-3">
+        {showCategories && (
+          <div className="flex flex-1 gap-1 overflow-x-auto overflow-y-hidden p-3 md:block md:space-y-1 md:overflow-x-hidden md:overflow-y-auto">
+            <button
+              onClick={() => setSelectedCategory("all")}
+              className={`min-h-11 w-max shrink-0 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-all md:w-full ${getCategoryButtonClass("all")}`}
+              style={getCategoryButtonStyle("all")}
+            >
+              All Products ({products.length})
+            </button>
+
+            {categories.map((category) => {
+              const count = products.filter((p) => p.category_id === category.id).length;
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(String(category.id))}
+                  className={`min-h-11 w-max shrink-0 rounded-xl px-3 py-2 text-left text-sm font-medium capitalize transition-all md:w-full ${getCategoryButtonClass(String(category.id))}`}
+                  style={getCategoryButtonStyle(String(category.id))}
+                >
+                  {category.name} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="border-t border-[#DCD0CC] p-3">
           <button
             onClick={handleLogout}
-            className="w-full px-3 py-2 text-left text-sm font-semibold text-white/65 transition hover:bg-[#6c3030] hover:text-white"
+            title="Logout"
+            className={`min-h-11 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[#796E6B] transition hover:bg-white/80 hover:text-[#2D2626] ${showCategories ? "text-left" : "text-center"}`}
           >
-            Logout
+            {showCategories ? "Log out" : <FiArrowLeft className="mx-auto rotate-180" size={18} />}
           </button>
         </div>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Menu Section */}
-        <div className="border-b border-slate-200 bg-[#f4f6f8] px-4 py-4 sm:px-5">
+        <div className="border-b border-[#E9DEDA] bg-[#FAF6F4] px-4 py-4 sm:px-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowCategories((visible) => !visible)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#E9DEDA] bg-white text-[#A76560] shadow-sm transition hover:bg-[#FBF2F0]"
                 aria-label={showCategories ? "Hide categories" : "Show categories"}
               >
                 <FiMenu size={18} />
               </button>
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Order builder</p>
-                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Menu</h1>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A08F89]">Point of sale</p>
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-[#2D2626]">Register</h1>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => router.push("/cashier/order-history")}
-                className="inline-flex items-center gap-2 border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#E9DEDA] bg-white px-3 py-2 text-sm font-bold text-[#796E6B] shadow-sm transition hover:bg-[#FBF2F0] hover:text-[#A76560]"
               >
                 <FiClock size={16} />
                 <span className="hidden sm:inline">History</span>
@@ -892,7 +948,7 @@ export default function CashierDisplay() {
               <button
                 type="button"
                 onClick={() => setShowCart((visible) => !visible)}
-                className="inline-flex h-9 w-9 items-center justify-center border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 md:inline-flex lg:hidden"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#E9DEDA] bg-white text-[#A76560] shadow-sm transition hover:bg-[#FBF2F0] md:inline-flex lg:hidden"
                 aria-label={showCart ? "Hide cart" : "Show cart"}
               >
                 <FiShoppingCart size={17} />
@@ -904,19 +960,19 @@ export default function CashierDisplay() {
           <div
             className={`mb-4 flex items-center justify-between gap-3 border px-4 py-3 transition-all ${
               pendingOrderCount > 0
-                ? "border-red-200 bg-red-50 shadow-[0_0_0_1px_rgba(239,68,68,0.15)]"
-                : "border-slate-200 bg-slate-50"
+                ? "rounded-xl border-red-200 bg-red-50 shadow-sm"
+                  : "rounded-xl border-[#E9DEDA] bg-white shadow-sm"
             }`}
           >
             <div className="flex min-w-0 items-center gap-3">
               <div
                 className={`h-3 w-3 rounded-full ${
-                  pendingOrderCount > 0 ? "animate-pulse bg-red-600" : "bg-slate-300"
+                  pendingOrderCount > 0 ? "animate-pulse bg-[#C98A84]" : "bg-[#D8CCC8]"
                 }`}
               />
               <div>
-                <p className={`text-xs font-bold uppercase tracking-[0.2em] ${pendingOrderCount > 0 ? "text-red-700" : "text-slate-500"}`}>Incoming queue</p>
-                <p className="truncate text-sm font-semibold text-slate-800">
+                <p className={`text-xs font-bold uppercase tracking-[0.2em] ${pendingOrderCount > 0 ? "text-[#A76560]" : "text-[#8D7E79]"}`}>Incoming queue</p>
+                <p className="truncate text-sm font-semibold text-[#4D413E]">
                   {pendingOrderCount > 0 ? `${pendingOrderCount} incoming order${pendingOrderCount > 1 ? "s" : ""} waiting` : "No incoming orders"}
                 </p>
               </div>
@@ -924,8 +980,8 @@ export default function CashierDisplay() {
             <button
               type="button"
               onClick={() => router.push("/cashier/incoming-orders")}
-              className={`shrink-0 px-3 py-2 text-xs font-bold text-white transition ${
-                pendingOrderCount > 0 ? "bg-red-600 hover:bg-red-700" : "bg-slate-500 hover:bg-slate-600"
+              className={`min-h-11 shrink-0 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition ${
+                pendingOrderCount > 0 ? "bg-[#C98A84] hover:bg-[#B97873]" : "bg-[#8D7E79] hover:bg-[#796E6B]"
               }`}
             >
               View Queue
@@ -933,7 +989,7 @@ export default function CashierDisplay() {
           </div>
 
           <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A08F89]">
               <FiSearch size={18} />
             </div>
             <input
@@ -941,7 +997,7 @@ export default function CashierDisplay() {
               placeholder="Search products..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-100 focus:outline-none"
+              className="min-h-12 w-full rounded-xl border border-[#E9DEDA] bg-white py-2 pl-10 pr-3 text-sm text-[#2D2626] placeholder:text-[#A08F89] shadow-sm focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20 focus:outline-none"
             />
           </div>
 
@@ -949,7 +1005,7 @@ export default function CashierDisplay() {
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               <button
                 onClick={() => setSelectedCategory("all")}
-                className={`shrink-0 px-3 py-2 text-sm font-semibold transition-all ${getCategoryButtonClass("all")}`}
+                className={`min-h-11 shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition-all ${getCategoryButtonClass("all")}`}
                 style={getCategoryButtonStyle("all")}
               >
                 All ({products.length})
@@ -960,7 +1016,7 @@ export default function CashierDisplay() {
                   <button
                     key={category.id}
                     onClick={() => setSelectedCategory(String(category.id))}
-                    className={`shrink-0 px-3 py-2 text-sm font-medium capitalize transition-all ${getCategoryButtonClass(String(category.id))}`}
+                    className={`min-h-11 shrink-0 rounded-xl px-4 py-2 text-sm font-medium capitalize transition-all ${getCategoryButtonClass(String(category.id))}`}
                     style={getCategoryButtonStyle(String(category.id))}
                   >
                     {category.name} ({count})
@@ -971,24 +1027,24 @@ export default function CashierDisplay() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto bg-[#FAF6F4] px-4 py-5 sm:px-5">
           {filteredProducts.length === 0 ? (
-            <div className="border border-slate-200 bg-white py-16 text-center">
-              <div className="text-slate-400 text-4xl mx-auto mb-3 flex justify-center">
+            <div className="rounded-2xl border border-[#E9DEDA] bg-white py-16 text-center shadow-sm">
+              <div className="mx-auto mb-3 flex justify-center text-4xl text-[#C3B4AF]">
                 <FiPackage />
               </div>
-              <p className="text-lg text-slate-900 font-bold">No products found</p>
-              <p className="text-slate-500 text-sm">Try a different search term or category</p>
+              <p className="text-lg font-bold text-[#2D2626]">No products found</p>
+              <p className="text-sm text-[#8D7E79]">Try a different search term or category</p>
             </div>
           ) : (
               <div className="space-y-8">
               {groupedProducts.map((category) => (
                 <section key={category.id} className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-900 capitalize">{category.name}</h2>
-                    <span className="text-xs font-semibold text-slate-500">{category.products.length} items</span>
+                    <h2 className="text-lg font-bold capitalize text-[#2D2626]">{category.name}</h2>
+                    <span className="text-xs font-semibold text-[#8D7E79]">{category.products.length} items</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                     {category.products.map((product) => {
                       const variants = getProductVariants(product);
                       const hasStock = variants.some((variant) => getVariantStock(variant) > 0);
@@ -996,9 +1052,9 @@ export default function CashierDisplay() {
                         <div
                           key={product.id}
                           onClick={() => hasStock && handleProductClick(product)}
-                          className={`overflow-hidden transition-all ${getProductCardClass(hasStock || false)}`}
+                          className={`overflow-hidden rounded-2xl transition-all ${getProductCardClass(hasStock || false)}`}
                         >
-                          <div className="relative flex h-40 items-center justify-center overflow-hidden bg-slate-100">
+                          <div className="relative flex h-32 items-center justify-center overflow-hidden bg-[#F3ECE9] sm:h-36">
                             {product.image ? (
                               <img
                                 src={product.image}
@@ -1006,26 +1062,26 @@ export default function CashierDisplay() {
                                 className="h-full w-full object-cover"
                               />
                             ) : (
-                              <div className="text-slate-400 text-3xl">
+                              <div className="text-3xl text-[#C3B4AF]">
                                 <FiPackage />
                               </div>
                             )}
                             {!hasStock && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <span className="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">
+                                <span className="rounded bg-[#DC2626] px-3 py-1 text-xs font-bold text-white">
                                   OUT OF STOCK
                                 </span>
                               </div>
                             )}
                           </div>
-                          <div className="p-4">
-                            <h3 className="mb-2 line-clamp-2 text-base font-bold text-slate-900">{product.product_name}</h3>
+                          <div className="min-h-24 p-3 sm:p-4">
+                            <h3 className="mb-2 line-clamp-2 text-sm font-bold text-[#2D2626] sm:text-base">{product.product_name}</h3>
                             {variants.length > 0 && (
                               <div>
                                 {variants.length === 1 ? (
-                                  <p className="font-bold" style={{ color: brandColor }}>₱{Number(variants[0].price).toFixed(2)}</p>
+                                  <p className="font-bold text-[#A76560]">₱{Number(variants[0].price).toFixed(2)}</p>
                                 ) : (
-                                  <p className="font-bold" style={{ color: brandColor }}>
+                                  <p className="font-bold text-[#A76560]">
                                     From ₱{Math.min(...variants.map((v) => Number(v.price))).toFixed(2)}
                                   </p>
                                 )}
@@ -1042,10 +1098,10 @@ export default function CashierDisplay() {
               {uncategorizedProducts.length > 0 && (
                 <section className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-900">Uncategorized</h2>
+                    <h2 className="text-lg font-bold text-[#2D2626]">Uncategorized</h2>
                     <span className="text-xs font-semibold text-slate-500">{uncategorizedProducts.length} items</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                     {uncategorizedProducts.map((product) => {
                       const variants = getProductVariants(product);
                       const hasStock = variants.some((variant) => getVariantStock(variant) > 0);
@@ -1053,9 +1109,9 @@ export default function CashierDisplay() {
                         <div
                           key={product.id}
                           onClick={() => hasStock && handleProductClick(product)}
-                          className={`overflow-hidden transition-all ${getProductCardClass(hasStock || false)}`}
+                          className={`overflow-hidden rounded-2xl transition-all ${getProductCardClass(hasStock || false)}`}
                         >
-                          <div className="relative flex h-60 items-center justify-center overflow-hidden bg-slate-100">
+                          <div className="relative flex h-32 items-center justify-center overflow-hidden bg-[#F3ECE9] sm:h-36">
                             {product.image ? (
                               <img
                                 src={product.image}
@@ -1063,26 +1119,26 @@ export default function CashierDisplay() {
                                 className="h-full w-full object-cover"
                               />
                             ) : (
-                              <div className="text-slate-400 text-3xl">
+                              <div className="text-3xl text-[#C3B4AF]">
                                 <FiPackage />
                               </div>
                             )}
                             {!hasStock && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <span className="bg-red-600 text-white px-3 py-1 rounded text-xs font-bold">
+                                <span className="rounded bg-[#DC2626] px-3 py-1 text-xs font-bold text-white">
                                   OUT OF STOCK
                                 </span>
                               </div>
                             )}
                           </div>
-                          <div className="p-4">
-                            <h3 className="mb-2 line-clamp-2 text-base font-bold text-slate-900">{product.product_name}</h3>
+                          <div className="min-h-24 p-3 sm:p-4">
+                            <h3 className="mb-2 line-clamp-2 text-sm font-bold text-[#2D2626] sm:text-base">{product.product_name}</h3>
                             {variants.length > 0 && (
                               <div>
                                 {variants.length === 1 ? (
-                                  <p className="font-bold" style={{ color: brandColor }}>₱{Number(variants[0].price).toFixed(2)}</p>
+                                  <p className="font-bold text-[#A76560]">₱{Number(variants[0].price).toFixed(2)}</p>
                                 ) : (
-                                  <p className="font-bold" style={{ color: brandColor }}>
+                                  <p className="font-bold text-[#A76560]">
                                     From ₱{Math.min(...variants.map((v) => Number(v.price))).toFixed(2)}
                                   </p>
                                 )}
@@ -1102,12 +1158,12 @@ export default function CashierDisplay() {
 
       {/* Variant Modal */}
       {showVariantModal && selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-md shadow-xl w-full max-w-5xl p-6 max-h-[85vh] overflow-y-auto md:w-3/4 xl:w-1/2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/35 p-4 backdrop-blur-sm">
+          <div className="max-h-[85vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-[#E9DEDA] bg-[#FFFCFA] p-5 shadow-2xl sm:p-6 md:w-3/4 xl:w-1/2">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">{selectedProduct.product_name}</h3>
-                <p className="text-slate-600 text-sm">Select a variant</p>
+                <h3 className="text-xl font-bold text-[#2D2626]">{selectedProduct.product_name}</h3>
+                <p className="text-sm text-[#8D7E79]">Select a variant</p>
               </div>
               <button
                 onClick={() => {
@@ -1116,25 +1172,25 @@ export default function CashierDisplay() {
                   setSelectedVariant(null);
                   setSelectedAddOns({});
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-[#8D7E79] hover:bg-[#F3ECE9] hover:text-[#2D2626]"
               >
                 <FiX size={24} />
               </button>
             </div>
 
-            <div className="space-y-2 mb-6">
+            <div className="mb-6 space-y-2">
               {getProductVariants(selectedProduct).map((variant) => (
                 <button
                   key={variant.id}
                   onClick={() => setSelectedVariant(variant)}
                   disabled={getVariantStock(variant) === 0}
-                  className={`w-full text-left p-3 rounded-md border transition-all ${getVariantButtonClass(
+                  className={`min-h-14 w-full rounded-xl border p-4 text-left transition-all ${getVariantButtonClass(
                     selectedVariant?.id === variant.id,
                     getVariantStock(variant) === 0
                   )}`}
                 >
                   <div className="flex justify-between items-center">
-                    <p className="font-bold text-slate-900">{variant.name}</p>
+                    <p className="font-bold text-[#2D2626]">{variant.name}</p>
                     <p className="font-bold" style={{ color: brandColor }}>₱{Number(variant.price)}</p>
                   </div>
                 </button>
@@ -1143,8 +1199,8 @@ export default function CashierDisplay() {
 
             {/* Add-ons Selection */}
             {addOns.length > 0 && (
-              <div className="mb-6 pt-6 border-t border-slate-200">
-                <h4 className="text-sm font-bold text-slate-900 mb-3">Add-Ons (Optional)</h4>
+              <div className="mb-6 border-t border-[#E9DEDA] pt-6">
+                <h4 className="mb-3 text-sm font-bold text-[#2D2626]">Add-Ons (Optional)</h4>
                 <div className="space-y-2">
                   {addOns.map((addon) => (
                     <label
@@ -1152,10 +1208,10 @@ export default function CashierDisplay() {
                       onClick={(event) => {
                         if (isAddOnOutOfStock(addon)) event.preventDefault();
                       }}
-                      className={`flex items-center gap-3 p-2 border rounded-md transition-all ${
+                      className={`flex min-h-12 items-center gap-3 rounded-xl border p-3 transition-all ${
                         isAddOnOutOfStock(addon)
                           ? "pointer-events-none cursor-not-allowed border-red-300 bg-red-50 text-red-700"
-                          : "cursor-pointer border-slate-200 hover:bg-slate-50"
+                          : "cursor-pointer border-[#E9DEDA] hover:bg-[#FBF2F0]"
                       }`}
                     >
                       <input
@@ -1169,11 +1225,11 @@ export default function CashierDisplay() {
                           }));
                         }}
                         disabled={isAddOnOutOfStock(addon)}
-                        className="w-4 h-4"
+                        className="h-5 w-5 accent-[#C98A84]"
                       />
                       <div className="flex-1">
-                        <p className={`text-sm font-medium ${isAddOnOutOfStock(addon) ? "text-red-700" : "text-slate-900"}`}>{addon.name}</p>
-                        <p className={`text-xs ${isAddOnOutOfStock(addon) ? "text-red-600" : "text-slate-500"}`}>
+                        <p className={`text-sm font-medium ${isAddOnOutOfStock(addon) ? "text-red-700" : "text-[#2D2626]"}`}>{addon.name}</p>
+                        <p className={`text-xs ${isAddOnOutOfStock(addon) ? "text-red-600" : "text-[#8D7E79]"}`}>
                           {addon.quantity} {addon.unit}{isAddOnOutOfStock(addon) && " (out of stock)"}
                         </p>
                       </div>
@@ -1184,7 +1240,7 @@ export default function CashierDisplay() {
               </div>
             )}
 
-            <div className="flex gap-3 pt-6 border-t border-slate-200">
+            <div className="flex gap-3 border-t border-[#E9DEDA] pt-6">
               <button
                 onClick={() => {
                   setShowVariantModal(false);
@@ -1192,7 +1248,7 @@ export default function CashierDisplay() {
                   setSelectedVariant(null);
                   setSelectedAddOns({});
                 }}
-                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition-colors font-medium"
+                className="min-h-12 flex-1 rounded-xl bg-[#ECE6E2] px-4 py-2 font-medium text-[#796E6B] transition-colors hover:bg-[#E2D9D5]"
               >
                 Cancel
               </button>
@@ -1221,8 +1277,7 @@ export default function CashierDisplay() {
 
                   addToCart(selectedProduct, selectedVariant, selectedAddOnsArray);
                 }}
-                className="flex-1 px-4 py-2 text-white rounded-md transition-colors font-medium disabled:cursor-not-allowed disabled:bg-slate-300"
-                style={{ backgroundColor: brandColor }}
+                className="min-h-12 flex-1 rounded-xl bg-[#C98A84] px-4 py-2 font-semibold text-white shadow-sm transition-colors hover:bg-[#B97873] disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 Add to Cart
               </button>
@@ -1232,21 +1287,21 @@ export default function CashierDisplay() {
       )}
 
       {/* Cart Sidebar */}
-      <div className={`${showCart ? "flex" : "hidden"} max-h-[45vh] w-full flex-col overflow-hidden border-t border-slate-200 bg-white md:max-h-none md:w-96 md:shrink-0 md:border-l md:border-t-0 lg:flex lg:w-[28rem]`}>
-        <div className="border-b border-slate-200 bg-white p-5">
+      <div className={`${showCart ? "flex" : "hidden"} max-h-[45vh] w-full shrink-0 flex-col overflow-hidden border-t border-[#E9DEDA] bg-[#FFFCFA] shadow-[0_0_24px_rgba(74,49,44,0.06)] md:max-h-none md:w-[22rem] md:border-l md:border-t-0 xl:w-[26rem] lg:flex`}>
+        <div className="border-b border-[#E9DEDA] bg-[#FFFCFA] p-4 sm:p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Current order</p>
-              <h2 className="mt-1 flex items-center gap-2 text-xl font-black text-slate-950">
-                <FiShoppingCart size={19} style={{ color: brandColor }} />
-                Cart <span className="text-sm font-medium text-slate-400">({cart.length})</span>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A08F89]">Current order</p>
+              <h2 className="mt-1 flex items-center gap-2 text-xl font-black text-[#2D2626]">
+                <FiShoppingCart size={19} className="text-[#C98A84]" />
+                Ticket <span className="text-sm font-medium text-[#A08F89]">({cart.length})</span>
               </h2>
             </div>
           </div>
 
           {/* Customer Name Input */}
           <div className="mb-3">
-            <label className="mb-1 block text-xs font-bold text-slate-600">
+            <label className="mb-1 block text-xs font-bold text-[#796E6B]">
               Customer Name <span className="text-red-300">*</span>
             </label>
             <input
@@ -1254,31 +1309,38 @@ export default function CashierDisplay() {
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Enter customer name..."
-              className="w-full border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none"
+              className="min-h-11 w-full rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-3 py-2 text-sm text-[#2D2626] placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C98A84]/20"
             />
           </div>
 
           {/* Special Requests */}
           <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">Special Requests (Optional)</label>
+            <label className="mb-1 block text-xs font-bold text-[#796E6B]">Special Requests (Optional)</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g., No sugar, extra syrup..."
-              className="w-full resize-none border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none"
+              className="w-full resize-none rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-3 py-2 text-sm text-[#2D2626] placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C98A84]/20"
               rows={2}
             />
           </div>
           {editingOrderId && (
             <div className="mt-3">
-              <label className="mb-1 block text-xs font-bold text-slate-600">
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="mb-2 min-h-10 rounded-xl border border-[#C98A84] px-3 py-2 text-xs font-bold text-[#9E625D] hover:bg-[#F6EFEC]"
+              >
+                Cancel Editing
+              </button>
+              <label className="mb-1 block text-xs font-bold text-[#796E6B]">
                 Reason for Editing Order <span className="text-red-300">*</span>
               </label>
               <textarea
                 value={editReason}
                 onChange={(e) => setEditReason(e.target.value)}
                 placeholder="Explain why this order is being edited..."
-                className="w-full resize-none border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:bg-white focus:outline-none"
+                className="w-full resize-none rounded-xl border border-[#E9DEDA] bg-[#FAF6F4] px-3 py-2 text-sm text-[#2D2626] placeholder:text-[#A08F89] focus:border-[#C98A84] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#C98A84]/20"
                 rows={2}
                 required
               />
@@ -1288,29 +1350,29 @@ export default function CashierDisplay() {
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {cart.length === 0 ? (
-            <div className="border border-dashed border-slate-300 bg-slate-50 py-12 text-center">
-              <div className="w-12 h-12 text-slate-300 mx-auto mb-3 flex justify-center">
+            <div className="rounded-2xl border border-dashed border-[#E9DEDA] bg-[#FAF6F4] py-12 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 justify-center text-[#C3B4AF]">
                 <FiShoppingCart size={24} />
               </div>
-              <p className="text-base font-bold text-slate-600">Cart is empty</p>
-              <p className="text-slate-400 text-xs">Add products to get started</p>
+              <p className="text-base font-bold text-[#4D413E]">Ticket is empty</p>
+              <p className="text-xs text-[#A08F89]">Tap a product to get started</p>
             </div>
           ) : (
             <>
-              <div className="mb-4 divide-y divide-slate-200 border-y border-slate-200">
+              <div className="mb-4 divide-y divide-[#EEE5E1]">
                 {cart.map((item) => (
-                  <div key={item.id} className="overflow-hidden bg-white">
+                  <div key={item.id} className="overflow-hidden bg-[#FFFCFA]">
                     <div className="py-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
-                          <h4 className="font-bold text-slate-900 text-sm">{item.product_name}</h4>
-                          <p className="text-xs text-slate-600">{item.variant_name}</p>
+                          <h4 className="text-sm font-bold text-[#2D2626]">{item.product_name}</h4>
+                          <p className="text-xs text-[#8D7E79]">{item.variant_name}</p>
                           {item.addOns.length > 0 && (
-                            <div className="mt-2 border-l-2 border-amber-400 bg-amber-50 p-2">
-                              <p className="text-[10px] uppercase tracking-[.18em] text-amber-700 font-semibold mb-1">Add-Ons</p>
+                            <div className="mt-2 rounded-lg border-l-2 border-[#C98A84] bg-[#FBF2F0] p-2">
+                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-[#A76560]">Add-Ons</p>
                               <div className="space-y-1">
                                 {item.addOns.map((addon) => (
-                                  <p key={addon.id} className="text-xs text-amber-800">
+                                  <p key={addon.id} className="text-xs text-[#796E6B]">
                                     + {addon.name} · ₱{Number(addon.price).toFixed(2)}
                                   </p>
                                 ))}
@@ -1321,17 +1383,17 @@ export default function CashierDisplay() {
                         <button
                           onClick={() => removeFromCart(item.id)}
                           aria-label={`Remove ${item.product_name}`}
-                          className="flex h-7 w-7 items-center justify-center text-slate-400 transition-all hover:bg-red-50 hover:text-red-600"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-red-50 hover:text-[#DC2626]"
                         >
                           <FiTrash2 size={14} />
                         </button>
                       </div>
 
-                      <div className="mb-2 flex items-center gap-2 bg-slate-50 p-1.5">
+                      <div className="mb-2 flex items-center gap-2 rounded-xl bg-[#ECE6E2] p-1.5">
                         <button
                           onClick={() => updateQuantity(item.id, -1)}
                           aria-label={`Decrease ${item.product_name} quantity`}
-                          className="flex h-7 w-7 items-center justify-center bg-slate-200 text-slate-700 transition hover:bg-slate-300"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-[#796E6B] shadow-sm transition hover:bg-[#FBF2F0] hover:text-[#A76560]"
                         >
                           <FiMinus size={12} />
                         </button>
@@ -1341,22 +1403,22 @@ export default function CashierDisplay() {
                           min="0"
                           value={item.quantity}
                           onChange={(e) => handleQuantityInputChange(item.id, e.target.value)}
-                          className="w-full border border-slate-300 bg-white px-2 py-1 text-center font-bold text-slate-800"
+                          className="min-h-11 w-full rounded-lg border border-[#E9DEDA] bg-white px-2 py-1 text-center font-bold text-[#2D2626] focus:border-[#C98A84] focus:outline-none"
                         />
 
                         <button
                           onClick={() => updateQuantity(item.id, 1)}
                           aria-label={`Increase ${item.product_name} quantity`}
-                          className="flex h-7 w-7 items-center justify-center bg-slate-200 text-slate-700 transition hover:bg-slate-300"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-[#796E6B] shadow-sm transition hover:bg-[#FBF2F0] hover:text-[#A76560]"
                         >
                           <FiPlus size={12} />
                         </button>
                       </div>
 
-                      <div className="mb-2 border-b border-slate-100 pb-2">
+                      <div className="mb-2 border-b border-[#F0E7E3] pb-2">
                         <p className="flex justify-between text-xs">
-                          <span className="text-slate-600">Item Total:</span>
-                          <span className="font-bold" style={{ color: brandColor }}>
+                          <span className="text-[#8D7E79]">Item Total:</span>
+                          <span className="font-bold text-[#2D2626]">
                             ₱{((item.price - (item.discount || 0)) * item.quantity).toFixed(2)}
                           </span>
                         </p>
@@ -1364,20 +1426,19 @@ export default function CashierDisplay() {
 
                       <button
                         onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)}
-                        className="w-full text-center text-xs font-bold hover:underline"
-                        style={{ color: brandColor }}
+                        className="min-h-10 w-full rounded-lg py-1 text-center text-xs font-bold text-[#A76560] hover:bg-[#FBF2F0]"
                       >
                         {expandedItem === item.id ? "Hide Options" : "More Options"}
                       </button>
                     </div>
 
                     {expandedItem === item.id && (
-                      <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-3">
+                      <div className="space-y-3 border-t border-[#E9DEDA] bg-[#F7F1EE] p-3">
                         {/* Order Type */}
                         <div>
-                          <p className="text-xs font-bold text-slate-800 mb-2">Order Type</p>
-                          <div className="space-y-1">
-                            <label className="flex items-center gap-2 cursor-pointer">
+                          <p className="mb-2 text-xs font-bold text-[#4D413E]">Order Type</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#E9DEDA] bg-white px-3 text-sm text-[#796E6B]">
                               <input
                                 type="radio"
                                 name={`orderType-${item.id}`}
@@ -1387,11 +1448,11 @@ export default function CashierDisplay() {
                                     cart.map((i) => (i.id === item.id ? { ...i, orderType: "dine-in" } : i))
                                   );
                                 }}
-                                className="w-4 h-4"
+                                className="h-4 w-4 accent-[#C98A84]"
                               />
-                              <span className="text-xs text-slate-700">Dine In</span>
+                              <span>Dine In</span>
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#E9DEDA] bg-white px-3 text-sm text-[#796E6B]">
                               <input
                                 type="radio"
                                 name={`orderType-${item.id}`}
@@ -1399,17 +1460,17 @@ export default function CashierDisplay() {
                                 onChange={() => {
                                   setCart(cart.map((i) => (i.id === item.id ? { ...i, orderType: "takeout" } : i)));
                                 }}
-                                className="w-4 h-4"
+                                className="h-4 w-4 accent-[#C98A84]"
                               />
-                              <span className="text-xs text-slate-700">Takeout</span>
+                              <span>Takeout</span>
                             </label>
                           </div>
                         </div>
 
                         {/* Add-ons */}
                         {addOns.length > 0 && (
-                          <div className="border border-[#d6c3af] bg-white p-2">
-                            <p className="text-xs font-bold text-slate-800 mb-2">Add-Ons</p>
+                          <div className="rounded-xl border border-[#E9DEDA] bg-white p-2">
+                            <p className="mb-2 text-xs font-bold text-[#4D413E]">Add-Ons</p>
                             <div className="space-y-1">
                               {addOns.map((addon) => {
                                 const isSelected = item.addOns.some(
@@ -1442,7 +1503,7 @@ export default function CashierDisplay() {
                                           return { ...cartItem, addOns: nextAddOns };
                                         }));
                                       }}
-                                      className="h-4 w-4 accent-[#6c3030]"
+                                      className="h-4 w-4 accent-[#C98A84]"
                                     />
                                     <span className="flex-1">
                                       {addon.name} (+₱{Number(addon.price).toFixed(2)})
@@ -1456,38 +1517,38 @@ export default function CashierDisplay() {
                         )}
 
                         {/* Discount */}
-                        <div className="border border-amber-200 bg-white p-2">
-                          <p className="text-xs font-bold text-slate-800 mb-2">Item Discount</p>
-                          <div className="space-y-1">
-                            <label className="flex items-center gap-2 cursor-pointer">
+                        <div className="rounded-xl border border-[#E9DEDA] bg-white p-2">
+                          <p className="mb-2 text-xs font-bold text-[#4D413E]">Item Discount</p>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            <label className="flex min-h-10 items-center gap-2 rounded-lg bg-[#FAF6F4] px-3 text-sm text-[#796E6B]">
                               <input
                                 type="radio"
                                 name={`discount-${item.id}`}
                                 checked={item.discount_type === "none" || !item.discount_type}
                                 onChange={() => updateItemDiscount(item.id, "none")}
-                                className="w-4 h-4"
+                                className="h-4 w-4 accent-[#C98A84]"
                               />
-                              <span className="text-xs text-slate-700">No Discount</span>
+                              <span>No Discount</span>
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex min-h-10 items-center gap-2 rounded-lg bg-[#FAF6F4] px-3 text-sm text-[#796E6B]">
                               <input
                                 type="radio"
                                 name={`discount-${item.id}`}
                                 checked={item.discount_type === "senior"}
                                 onChange={() => updateItemDiscount(item.id, "senior")}
-                                className="w-4 h-4"
+                                className="h-4 w-4 accent-[#C98A84]"
                               />
-                              <span className="text-xs text-slate-700">Senior Citizen (-₱5)</span>
+                              <span>Senior Citizen (-₱5)</span>
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex min-h-10 items-center gap-2 rounded-lg bg-[#FAF6F4] px-3 text-sm text-[#796E6B]">
                               <input
                                 type="radio"
                                 name={`discount-${item.id}`}
                                 checked={item.discount_type === "pwd"}
                                 onChange={() => updateItemDiscount(item.id, "pwd")}
-                                className="w-4 h-4"
+                                className="h-4 w-4 accent-[#C98A84]"
                               />
-                              <span className="text-xs text-slate-700">PWD (-₱5)</span>
+                              <span>PWD (-₱5)</span>
                             </label>
                           </div>
                         </div>
@@ -1498,33 +1559,63 @@ export default function CashierDisplay() {
               </div>
 
               {/* Summary */}
-              <div className="mb-3 space-y-2 border-y border-slate-200 py-3">
+              <div className="mb-3 space-y-2 rounded-xl bg-[#ECE6E2] p-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Subtotal:</span>
-                  <span className="font-bold">₱{calculateSubtotal().toFixed(2)}</span>
+                  <span className="text-[#796E6B]">Subtotal</span>
+                  <span className="font-semibold text-[#4D413E]">₱{calculateSubtotal().toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold border-t border-slate-300 pt-2">
+                <div className="flex justify-between border-t border-[#D8CCC8] pt-3 text-lg font-black">
                   <span>Total:</span>
                   <span style={{ color: brandColor }}>₱{calculateTotal().toFixed(2)}</span>
                 </div>
               </div>
 
               {/* Payment Input */}
-              <div className="mb-3 border border-slate-200 bg-slate-50 p-3">
-                <label className="mb-2 block text-sm font-bold text-slate-800">Amount Paid</label>
+              <div className="mb-3 rounded-2xl border border-[#E9DEDA] bg-[#FAF6F4] p-3">
+                <label className="mb-2 block text-sm font-bold text-[#4D413E]">Mode of Payment</label>
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  {(["cash", "online"] as const).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setPaymentMethod(method)}
+                      className={`min-h-11 rounded-xl border px-3 text-sm font-bold capitalize transition ${
+                        paymentMethod === method
+                          ? "border-[#C98A84] bg-[#C98A84] text-white"
+                          : "border-[#E9DEDA] bg-white text-[#796E6B] hover:border-[#C98A84]"
+                      }`}
+                    >
+                      {method === "online" ? "Online payment" : "Cash"}
+                    </button>
+                  ))}
+                </div>
+                <label className="mb-2 block text-sm font-bold text-[#4D413E]">
+                  {paymentMethod === "online" ? "Amount Received" : "Amount Paid"}
+                </label>
                 <input
                   type="number"
                   step="0.01"
                   value={amountPaid}
                   onChange={(e) => setAmountPaid(e.target.value)}
                   placeholder="Enter amount..."
-                  className="w-full border border-slate-300 bg-white px-3 py-2 text-lg font-bold focus:outline-none"
+                  className="min-h-14 w-full rounded-xl border border-[#E9DEDA] bg-white px-3 py-2 text-right text-2xl font-black text-[#2D2626] placeholder:text-base placeholder:font-normal placeholder:text-[#B7A8A3] focus:border-[#C98A84] focus:outline-none focus:ring-2 focus:ring-[#C98A84]/20"
                   style={{ borderColor: brandColor }}
                 />
-                {amountPaid && !isNaN(parseFloat(amountPaid)) && (
+                {paymentMethod === "online" && (
+                  <input
+                    type="text"
+                    value={paymentReference}
+                    onChange={(event) => setPaymentReference(event.target.value)}
+                    placeholder="Enter payment reference"
+                    className="mt-3 min-h-12 w-full rounded-xl border border-[#E9DEDA] bg-white px-3 text-sm text-[#2D2626] outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/20"
+                  />
+                )}
+                {paymentMethod === "cash" && amountPaid && !isNaN(parseFloat(amountPaid)) && (
                   <div
-                    className={`mt-2 flex justify-between p-2 text-sm font-bold text-white ${
-                      parseFloat(amountPaid) >= calculateTotal() ? "bg-green-600" : "bg-red-600"
+                    className={`mt-2 flex justify-between rounded-lg p-2 text-sm font-bold ${
+                      parseFloat(amountPaid) >= calculateTotal()
+                        ? "bg-[#E5F1E9] text-[#477259]"
+                        : "bg-[#F5E7E5] text-[#A65F58]"
                     }`}
                   >
                     <span>{parseFloat(amountPaid) >= calculateTotal() ? "Change:" : "Need more:"}</span>
@@ -1535,7 +1626,7 @@ export default function CashierDisplay() {
 
               {/* Checkout */}
               {cart.some((item) => item.quantity === 0) && (
-                <div className="mb-3 border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-[#DC2626]">
                   Some items have zero quantity and cannot be ordered. Update or remove them to continue.
                 </div>
               )}
@@ -1543,7 +1634,7 @@ export default function CashierDisplay() {
               <button
                 onClick={() => handleCheckout()}
                 disabled={cart.length === 0 || !customerName.trim() || cart.some((item) => item.quantity === 0)}
-                className="w-full bg-[#16834b] py-3 font-bold text-white transition-all hover:bg-[#116b3d] disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="min-h-14 w-full rounded-xl bg-[#C98A84] py-3 text-base font-black text-white shadow-[0_8px_18px_rgba(201,138,132,0.28)] transition-all hover:bg-[#B97873] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 {editingOrderId ? "Save Changes" : "Checkout"}
               </button>

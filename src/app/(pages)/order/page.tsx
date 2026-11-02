@@ -1,5 +1,5 @@
-import CustomerOrdering from "@/components/MobileOrder";
+import { redirect } from "next/navigation";
 
 export default function OrderPage() {
-  return <CustomerOrdering />;
+  redirect("/order/1");
 }

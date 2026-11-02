@@ -16,9 +16,9 @@ export default function IngredientsRoute() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-[#f8f1e8]">
+    <div className="flex min-h-screen overflow-x-hidden bg-[#FAF6F4]">
       <Sidebar />
-      <div className="flex-1 overflow-auto">
+      <div className="min-w-0 flex-1">
         <IngredientsPage shopId={shopId} />
       </div>
     </div>

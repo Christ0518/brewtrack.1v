@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { supabaseServer } from "@/lib/supabase";
 
 type UserRow = Record<string, unknown>;
@@ -10,7 +11,6 @@ type UserCreatePayload = {
   last_name?: string;
   role?: string;
   password?: string;
-  admin_password?: string;
 };
 
 type UserUpdatePayload = {
@@ -19,31 +19,14 @@ type UserUpdatePayload = {
   first_name?: string;
   last_name?: string;
   role?: string;
-  admin_password?: string;
 };
 
 type PasswordPayload = {
   id?: number | string;
+  username?: string;
   current_password?: string;
   new_password?: string;
   mode?: "change" | "forgot";
-  admin_password?: string;
-};
-
-const verifyAdminPassword = async (password: unknown, shopId: number) => {
-  if (!password) return false;
-
-  const { data: admins, error } = await supabaseServer
-    .from("tbl_users")
-    .select("password")
-    .eq("shop_id", shopId)
-    .eq("role", "admin");
-
-  if (error || !admins?.length) return false;
-  for (const admin of admins) {
-    if (await verifyPassword(String(password), String(admin.password || ""))) return true;
-  }
-  return false;
 };
 
 const normalizeUser = (row: UserRow) => {
@@ -83,6 +66,43 @@ const parseShopId = (req: NextRequest): number | null => {
   return 1;
 };
 
+const authorizeShopAdmin = async (req: NextRequest, shopId: number) => {
+  const token = req.cookies.get("token")?.value;
+  const secret = process.env.JWT_SECRET;
+  if (!token || !secret) {
+    return { authorized: false, status: 401, message: "A valid signed-in session is required" };
+  }
+
+  let username: string;
+  try {
+    const decoded = jwt.verify(token, secret);
+    if (typeof decoded === "string" || typeof decoded.email !== "string") {
+      return { authorized: false, status: 401, message: "A valid signed-in session is required" };
+    }
+    username = decoded.email;
+  } catch {
+    return { authorized: false, status: 401, message: "A valid signed-in session is required" };
+  }
+
+  const { data, error } = await supabaseServer
+    .from("tbl_users")
+    .select("id")
+    .eq("name", username)
+    .eq("shop_id", shopId)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  if (error) {
+    return { authorized: false, status: 500, message: "Failed to verify staff-management permissions" };
+  }
+
+  if (!data) {
+    return { authorized: false, status: 403, message: "An admin account for this shop is required" };
+  }
+
+  return { authorized: true, status: 200, message: "" };
+};
+
 const buildRolePayload = (role: string) => ({
   role,
 });
@@ -120,12 +140,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "shop_id is required" }, { status: 400 });
     }
 
-    if (!body.name || !body.first_name || !body.last_name || !body.role || !body.password) {
-      return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
+    const authorization = await authorizeShopAdmin(req, shopId);
+    if (!authorization.authorized) {
+      return NextResponse.json(
+        { success: false, message: authorization.message },
+        { status: authorization.status }
+      );
     }
 
-    if (!(await verifyAdminPassword(body.admin_password, shopId))) {
-      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
+    if (!body.name || !body.first_name || !body.last_name || !body.role || !body.password) {
+      return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(body.password, 10);
@@ -165,6 +189,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, message: "shop_id is required" }, { status: 400 });
     }
 
+    const authorization = await authorizeShopAdmin(req, shopId);
+    if (!authorization.authorized) {
+      return NextResponse.json(
+        { success: false, message: authorization.message },
+        { status: authorization.status }
+      );
+    }
+
     const id = Number(body.id);
     if (!id || Number.isNaN(id)) {
       return NextResponse.json({ success: false, message: "id is required" }, { status: 400 });
@@ -172,10 +204,6 @@ export async function PUT(req: NextRequest) {
 
     if (!body.name || !body.first_name || !body.last_name || !body.role) {
       return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
-    }
-
-    if (!(await verifyAdminPassword(body.admin_password, shopId))) {
-      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
     }
 
     const updatePayload = {
@@ -214,13 +242,16 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, message: "shop_id is required" }, { status: 400 });
     }
 
-    if (!id || Number.isNaN(id)) {
-      return NextResponse.json({ success: false, message: "id is required" }, { status: 400 });
+    const authorization = await authorizeShopAdmin(req, shopId);
+    if (!authorization.authorized) {
+      return NextResponse.json(
+        { success: false, message: authorization.message },
+        { status: authorization.status }
+      );
     }
 
-    const adminPassword = (await req.json().catch(() => ({}))) as { admin_password?: string };
-    if (!(await verifyAdminPassword(adminPassword.admin_password, shopId))) {
-      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
+    if (!id || Number.isNaN(id)) {
+      return NextResponse.json({ success: false, message: "id is required" }, { status: 400 });
     }
 
     const { error } = await supabaseServer
@@ -249,6 +280,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, message: "shop_id is required" }, { status: 400 });
     }
 
+    const authorization = await authorizeShopAdmin(req, shopId);
+    if (!authorization.authorized) {
+      return NextResponse.json(
+        { success: false, message: authorization.message },
+        { status: authorization.status }
+      );
+    }
+
     const id = Number(body.id);
     if (!id || Number.isNaN(id)) {
       return NextResponse.json({ success: false, message: "id is required" }, { status: 400 });
@@ -258,13 +297,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, message: "New password must be at least 8 characters" }, { status: 400 });
     }
 
-    if (!(await verifyAdminPassword(body.admin_password, shopId))) {
-      return NextResponse.json({ success: false, message: "A valid admin password is required" }, { status: 403 });
-    }
-
     const { data: userRow, error: userError } = await supabaseServer
       .from("tbl_users")
-      .select("id, password, shop_id")
+      .select("id, name, password, shop_id")
       .eq("id", id)
       .eq("shop_id", shopId)
       .single();
@@ -284,6 +319,8 @@ export async function PATCH(req: NextRequest) {
       if (!isValid) {
         return NextResponse.json({ success: false, message: "Current password is incorrect" }, { status: 403 });
       }
+    } else if (mode === "forgot" && body.username !== userRow.name) {
+      return NextResponse.json({ success: false, message: "Username does not match the selected user" }, { status: 403 });
     }
 
     const hashedPassword = await bcrypt.hash(body.new_password, 10);

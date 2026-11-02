@@ -16,9 +16,9 @@ export default function ProductsRoute() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex min-h-screen overflow-x-hidden bg-[#FAF6F4]">
       <Sidebar />
-      <div className="flex-1 overflow-auto">
+      <div className="min-w-0 flex-1">
         <div>
           <ProductsPage shopId={shopId} />
         </div>

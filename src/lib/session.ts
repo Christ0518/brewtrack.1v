@@ -14,8 +14,8 @@ export async function createSession(email: string, secure: boolean) {
     value: token,
     httpOnly: true,
     secure,
-    sameSite: "strict",
+    sameSite: "lax",
     path: "/",
-    maxAge: 86400,
+    maxAge: 120 * 60 * 60,
   });
 }

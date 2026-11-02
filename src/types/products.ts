@@ -1,6 +1,9 @@
 export interface Ingredient {
   ingredient_id: string;
   amount: number;
+  ingredient_name?: string;
+  name?: string;
+  unit?: string;
 }
 
 export interface Variant {

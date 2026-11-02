@@ -27,17 +27,19 @@ export async function middleware(request: NextRequest) {
       cache: "no-store",
     });
 
-    if (verificationResponse.ok) {
-      return NextResponse.next();
+    if (verificationResponse.ok) return NextResponse.next();
+
+    if (verificationResponse.status === 401) {
+      const response = NextResponse.redirect(new URL("/", request.url));
+      response.cookies.delete("token");
+      return response;
     }
 
-    const response = NextResponse.redirect(new URL("/", request.url));
-    response.cookies.delete("token");
-    return response;
+    console.warn("Session verification was unavailable; preserving the existing session.");
+    return NextResponse.next();
   } catch {
-    const response = NextResponse.redirect(new URL("/", request.url));
-    response.cookies.delete("token");
-    return response;
+    console.warn("Session verification request failed; preserving the existing session.");
+    return NextResponse.next();
   }
 }
 

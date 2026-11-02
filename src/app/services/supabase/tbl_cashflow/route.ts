@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase";
 
 type CashFlowPayload = {
   id?: number | string;
+  shop_id?: number | string;
   type?: string;
   category?: string;
   description?: string;
@@ -65,37 +66,44 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(mapTransaction(data), { status: 200 });
     }
 
-    let query = supabaseServer
-      .from("tbl_cashflow")
-      .select("*")
-      .eq("shop_id", shopId)
-      .order("date", { ascending: false })
-      .order("created_at", { ascending: false });
+    const pageSize = 500;
+    const data: any[] = [];
+    for (let offset = 0; ; offset += pageSize) {
+      let query = supabaseServer
+        .from("tbl_cashflow")
+        .select("*")
+        .eq("shop_id", shopId)
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false });
 
-    if (type) {
-      query = query.eq("type", type);
-    }
+      if (type) {
+        query = query.eq("type", type);
+      }
 
-    if (startDate) {
-      query = query.gte("date", startDate);
-    }
+      if (startDate) {
+        query = query.gte("date", startDate);
+      }
 
-    if (endDate) {
-      query = query.lte("date", endDate);
-    }
+      if (endDate) {
+        query = query.lte("date", endDate);
+      }
 
-    if (day) {
-      query = query.eq("date", day);
-    }
+      if (day) {
+        query = query.eq("date", day);
+      }
 
-    const { data, error } = await query;
+      const { data: pageData, error } = await query.range(offset, offset + pageSize - 1);
 
-    if (error) {
-      console.error("Error fetching transactions:", error);
-      return NextResponse.json(
-        { message: "Error fetching transactions", error: error.message },
-        { status: 500 }
-      );
+      if (error) {
+        console.error("Error fetching transactions:", error);
+        return NextResponse.json(
+          { message: "Error fetching transactions", error: error.message },
+          { status: 500 }
+        );
+      }
+
+      data.push(...(pageData || []));
+      if (!pageData || pageData.length < pageSize) break;
     }
 
     const transactions = (data || []).map(mapTransaction);
@@ -128,11 +136,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as CashFlowPayload;
+    const shopId = body.shop_id || req.headers.get("x-shop-id");
     const amount = parseNumber(body.amount);
 
-    if (!body.type || !body.category || !body.description || amount === null || !body.date) {
+    if (!shopId || !body.type || !body.category || !body.description || amount === null || !body.date) {
       return NextResponse.json(
-        { message: "All required fields must be provided" },
+        { message: "shop_id and all transaction fields must be provided" },
         { status: 400 }
       );
     }
@@ -140,6 +149,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseServer
       .from("tbl_cashflow")
       .insert({
+        shop_id: shopId,
         type: body.type,
         category: body.category,
         description: body.description,
@@ -152,8 +162,17 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error("Error creating transaction:", error);
+      const missingCashflowIdDefault =
+        error.code === "23502" &&
+        error.details?.includes('column "id" of relation "tbl_cashflow"');
+
       return NextResponse.json(
-        { message: "Error creating transaction", error: error.message },
+        {
+          message: missingCashflowIdDefault
+            ? "The API's database connection is not generating tbl_cashflow IDs. Confirm this API uses the same Supabase project where the ID test succeeded, then restart or redeploy the current code."
+            : "Error creating transaction",
+          error: error.message,
+        },
         { status: 500 }
       );
     }

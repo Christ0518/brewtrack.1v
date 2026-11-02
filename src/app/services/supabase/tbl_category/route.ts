@@ -62,7 +62,8 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseServer
       .from("tbl_category")
       .insert([{ name: name.trim(), shop_id: shopId }])
-      .select("id");
+      .select("id, name")
+      .single();
 
     if (error) {
       console.error("Error adding category:", error);
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       return NextResponse.json(
         { message: "Failed to create category" },
         { status: 500 }
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { id: data[0].id, message: "Category added" },
+      { id: data.id, name: data.name, message: "Category added" },
       { status: 201 }
     );
   } catch (error) {
