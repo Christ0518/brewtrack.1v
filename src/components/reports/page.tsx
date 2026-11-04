@@ -1235,37 +1235,26 @@ export default function ReportsPage() {
           </div>
 
           <div className="bg-white rounded-2xl border border-[#E5DCD7] p-4 lg:p-6 mb-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-[#2D2626]">Net Income Breakdown</h3>
-              <select
-                value={selectedNetIncomePeriod}
-                onChange={(e) => setSelectedNetIncomePeriod(e.target.value as NetIncomePeriod)}
-                className="min-h-11 px-3 py-2 border border-[#E5DCD7] rounded-lg outline-none cursor-pointer text-sm text-[#2D2626] focus:border-[#C98A84]"
-              >
-                <option value="weekly">This Week</option>
-                <option value="monthly">This Month</option>
-                <option value="quarterly">This Quarter</option>
-                <option value="semiAnnual">Semi-Annual</option>
-                <option value="annual">This Year</option>
-              </select>
-            </div>
+            <h3 className="text-lg font-bold text-[#2D2626] mb-4">Net Income Breakdown</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#FBF8F6]">
                 <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Gross Income</div>
-                <div className="text-2xl font-bold text-[#A76560]">{formatMoney(period.grossIncome)}</div>
+                <div className="text-2xl font-bold text-[#A76560]">{formatMoney(stats.totalSales)}</div>
               </div>
               <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#F7F0EA]">
                 <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Discounts</div>
-                <div className="text-2xl font-bold text-[#A7774E]">-{formatMoney(period.discounts).replace("₱", "")}</div>
+                <div className="text-2xl font-bold text-[#A7774E]">-{formatMoney(stats.totalDiscount).replace("₱", "")}</div>
               </div>
               <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#F3F0EA]">
                 <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Pay-ins</div>
-                <div className="text-2xl font-bold text-[#6F765A]">+{formatMoney(period.payIns).replace("₱", "")}</div>
+                <div className="text-2xl font-bold text-[#6F765A]">+{formatMoney(stats.payIn).replace("₱", "")}</div>
               </div>
               <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#F3F0EA]">
                 <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Net Income</div>
-                <div className="text-2xl font-bold text-[#6F765A]">{formatMoney(period.netIncome)}</div>
+                <div className="text-2xl font-bold text-[#6F765A]">
+                  {formatMoney(stats.totalSales - stats.totalDiscount + stats.payIn - stats.payOut)}
+                </div>
               </div>
             </div>
 
