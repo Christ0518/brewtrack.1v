@@ -89,7 +89,9 @@ export default function Home() {
       }
 
       const requestedPath = new URLSearchParams(window.location.search).get("next");
-      const nextPath = requestedPath && requestedPath.startsWith("/order/") ? requestedPath : getPostLoginRoute(normalizedRole);
+      const nextPath = requestedPath === "/order" || requestedPath?.startsWith("/order/")
+        ? requestedPath
+        : getPostLoginRoute(normalizedRole);
       window.location.replace(nextPath);
     } catch (error) {
       console.error("Login error:", error);

@@ -147,7 +147,11 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
   useEffect(() => {
     if (defaultShopId) {
       setShopId(String(defaultShopId));
+      return;
     }
+
+    const storedShopId = localStorage.getItem("shopId");
+    if (storedShopId) setShopId(storedShopId);
   }, [defaultShopId]);
 
   // Load products when shop changes

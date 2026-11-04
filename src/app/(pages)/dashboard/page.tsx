@@ -28,6 +28,7 @@ export default function Dashboard() {
     const [cashflow, setCashflow] = useState<any[]>([]);
     const [ingredients, setIngredients] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [userRole, setUserRole] = useState("");
 
     useEffect(() => {
         const Verify = async () => {
@@ -41,9 +42,18 @@ export default function Dashboard() {
     useEffect(() => {
         const storedShopName = localStorage.getItem("shopName");
         const storedShopId = localStorage.getItem("shopId") || "1";
+        const storedUser = localStorage.getItem("user");
 
         if (storedShopName) setShopName(storedShopName);
         setShopId(storedShopId);
+        if (storedUser) {
+            try {
+                const user = JSON.parse(storedUser) as { role?: string; user_role?: string; userRole?: string };
+                setUserRole(String(user.role || user.user_role || user.userRole || "").trim().toLowerCase());
+            } catch (error) {
+                console.error("Failed to parse dashboard user data:", error);
+            }
+        }
     }, []);
 
     useEffect(() => {
@@ -222,6 +232,18 @@ export default function Dashboard() {
                             <p className="mt-2 text-sm text-[#796E6B] sm:text-base">Here’s what’s happening in your shop today.</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
+                            {(userRole === "admin" || userRole === "cashier") && (
+                                <a
+                                    href="/order"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-2 rounded-2xl bg-[#C98A84] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#B97872] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A65F58]"
+                                >
+                                    <FiShoppingBag aria-hidden="true" className="h-5 w-5" />
+                                    Mobile Order
+                                    <FiArrowUpRight aria-hidden="true" className="h-4 w-4" />
+                                </a>
+                            )}
                             <div className="rounded-2xl border border-[#E9DFDB] bg-white/80 px-4 py-3 shadow-sm">
                                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9B8883]">Today</p>
                                 <p className="mt-1 text-sm font-semibold text-[#2D2626]">{todayLabel || "Loading date…"}</p>

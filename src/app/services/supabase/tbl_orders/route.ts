@@ -473,7 +473,7 @@ export async function GET(req: NextRequest) {
             subtotal,
             discount_type,
             discount,
-            tbl_product_variants (
+            tbl_product_variants!tbl_orders_details_variant_id_fkey (
               id,
               name,
               calculated_cost,

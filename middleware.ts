@@ -15,7 +15,12 @@ export async function middleware(request: NextRequest) {
 
   const token = request.cookies.get("token")?.value;
   if (!token) {
-    return NextResponse.redirect(new URL("/", request.url));
+    const loginUrl = new URL("/", request.url);
+    loginUrl.searchParams.set(
+      "next",
+      request.nextUrl.pathname === "/order" ? "/order" : `${request.nextUrl.pathname}${request.nextUrl.search}`
+    );
+    return NextResponse.redirect(loginUrl);
   }
 
   try {

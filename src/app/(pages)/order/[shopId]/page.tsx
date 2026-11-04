@@ -19,10 +19,17 @@ export default function OrderShopPage({ params }: Props) {
 
   useEffect(() => {
     Fetch_to(api_links.jwt.verify).then((response) => {
-      if (response.success) {
+      if (!response.success) {
+        router.replace(`/?next=${encodeURIComponent(`/order/${shopId}`)}`);
+        return;
+      }
+
+      const payload = response.data as { message?: { role?: string } } | undefined;
+      const role = payload?.message?.role?.trim().toLowerCase();
+      if (role === "admin" || role === "cashier") {
         setAuthorized(true);
       } else {
-        router.replace(`/?next=${encodeURIComponent(`/order/${shopId}`)}`);
+        router.replace("/");
       }
     }).catch((error) => {
       console.error("Order route authorization failed:", error);
