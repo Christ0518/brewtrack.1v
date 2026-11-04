@@ -10,13 +10,13 @@ export async function GET() {
 
         const { data, error } = await supabaseServer
         .from("tbl_users")     
-        .select("*")
+        .select("id")
         .limit(1);
 
         if (error) throw error;
 
         return NextResponse.json(
-        { status: "healthy", message: " ==> Supabase connection successful", data: data },
+        { status: "healthy", message: " ==> Supabase connection successful" },
         { status: 200 }
         );
     } catch (err) {
