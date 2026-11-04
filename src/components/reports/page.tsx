@@ -12,11 +12,9 @@ import {
   FiCheckCircle,
   FiClock,
   FiDownload,
-  FiDollarSign,
   FiPrinter,
   FiPieChart,
   FiSearch,
-  FiShoppingBag,
   FiShoppingCart,
   FiTrendingUp,
 } from "react-icons/fi";
@@ -38,6 +36,7 @@ type Order = {
   created_at: string;
   last_edited_at?: string | null;
   total: number;
+  discount?: number;
   customer_name?: string;
   status?: string;
   notes?: string | null;
@@ -131,6 +130,15 @@ function htmlEscape(value: unknown) {
     '"': "&quot;",
     "'": "&#39;",
   })[character] ?? character);
+}
+
+function getItemDiscount(item: OrderItem) {
+  return Math.max(0, Number(item.discount || 0));
+}
+
+function getItemRevenue(item: OrderItem) {
+  const subtotal = Number(item.subtotal || 0);
+  return Math.max(0, subtotal - getItemDiscount(item) * Number(item.quantity || 0));
 }
 
 export default function ReportsPage() {
@@ -345,12 +353,8 @@ export default function ReportsPage() {
   }, [usedIngredientSearch, usedIngredients]);
 
   const getDiscountAmount = (order: Order) => {
-    return (order.items || []).reduce((sum, item) => {
-      if (item.discount_type === "senior" || item.discount_type === "pwd") {
-        return sum + 5;
-      }
-      return sum;
-    }, 0);
+    const itemDiscount = (order.items || []).reduce((sum, item) => sum + getItemDiscount(item), 0);
+    return itemDiscount || Math.max(0, Number(order.discount || 0));
   };
 
   const filterOrdersByPeriod = useMemo(() => {
@@ -439,7 +443,7 @@ export default function ReportsPage() {
         };
 
         current.quantity += Number(item.quantity || 0);
-        current.revenue += Number(item.subtotal || item.quantity * (order.total || 0));
+        current.revenue += getItemRevenue(item);
         productSales.set(key, current);
       });
     });
@@ -553,7 +557,7 @@ export default function ReportsPage() {
     filterOrdersByPeriod.forEach((order) => {
       order.items?.forEach((item) => {
         const category = productCategories.get(item.product_name) || "Uncategorized";
-        const revenue = Number(item.subtotal) || 0;
+        const revenue = getItemRevenue(item);
         revenueByCategory.set(category, (revenueByCategory.get(category) || 0) + revenue);
       });
     });
@@ -599,9 +603,9 @@ export default function ReportsPage() {
       });
     };
 
-    const getPeriodExpenses = (periodType: NetIncomePeriod) => {
+    const getPeriodTransactions = (periodType: NetIncomePeriod, transactionType: Transaction["type"]) => {
       return transactions.filter((tx) => {
-        if (tx.type !== "payout") return false;
+        if (tx.type !== transactionType) return false;
 
         const txDate = new Date(tx.date || tx.created_at || new Date().toISOString());
 
@@ -633,25 +637,27 @@ export default function ReportsPage() {
       });
     };
 
-    const calculateForPeriod = (periodOrders: Order[], periodExpenses: Transaction[]) => {
+    const calculateForPeriod = (periodOrders: Order[], periodPayIns: Transaction[], periodExpenses: Transaction[]) => {
       const grossIncome = periodOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
       const totalDiscounts = periodOrders.reduce((sum, order) => sum + getDiscountAmount(order), 0);
+      const totalPayIns = periodPayIns.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
       const totalExpenses = periodExpenses.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 
       return {
         grossIncome,
         discounts: totalDiscounts,
+        payIns: totalPayIns,
         expenses: totalExpenses,
-        netIncome: grossIncome - totalDiscounts - totalExpenses,
+        netIncome: grossIncome - totalDiscounts + totalPayIns - totalExpenses,
       };
     };
 
     return {
-      weekly: calculateForPeriod(getPeriodOrders("weekly"), getPeriodExpenses("weekly")),
-      monthly: calculateForPeriod(getPeriodOrders("monthly"), getPeriodExpenses("monthly")),
-      quarterly: calculateForPeriod(getPeriodOrders("quarterly"), getPeriodExpenses("quarterly")),
-      semiAnnual: calculateForPeriod(getPeriodOrders("semiAnnual"), getPeriodExpenses("semiAnnual")),
-      annual: calculateForPeriod(getPeriodOrders("annual"), getPeriodExpenses("annual")),
+      weekly: calculateForPeriod(getPeriodOrders("weekly"), getPeriodTransactions("weekly", "payin"), getPeriodTransactions("weekly", "payout")),
+      monthly: calculateForPeriod(getPeriodOrders("monthly"), getPeriodTransactions("monthly", "payin"), getPeriodTransactions("monthly", "payout")),
+      quarterly: calculateForPeriod(getPeriodOrders("quarterly"), getPeriodTransactions("quarterly", "payin"), getPeriodTransactions("quarterly", "payout")),
+      semiAnnual: calculateForPeriod(getPeriodOrders("semiAnnual"), getPeriodTransactions("semiAnnual", "payin"), getPeriodTransactions("semiAnnual", "payout")),
+      annual: calculateForPeriod(getPeriodOrders("annual"), getPeriodTransactions("annual", "payin"), getPeriodTransactions("annual", "payout")),
     };
   }, [orders, transactions]);
 
@@ -821,7 +827,6 @@ export default function ReportsPage() {
         <section class="summary">
           <div class="card"><div class="label">Gross income</div><div class="value">${formatMoney(period.grossIncome)}</div></div>
           <div class="card"><div class="label">Discounts</div><div class="value">−${formatMoney(period.discounts)}</div></div>
-          <div class="card"><div class="label">Operating expenses</div><div class="value">−${formatMoney(period.expenses)}</div></div>
           <div class="card"><div class="label">Net income</div><div class="value">${formatMoney(period.netIncome)}</div></div>
         </section>
 
@@ -1045,54 +1050,6 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <section aria-label="Key performance indicators" className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {[
-              {
-                label: "Gross revenue",
-                value: formatMoney(stats.totalSales),
-                note: `${stats.totalOrders} completed transactions`,
-                color: "#C98A84",
-                icon: FiDollarSign,
-                points: "0,28 14,23 28,25 42,15 56,18 70,8 84,11 100,2",
-              },
-              {
-                label: "Net income estimate",
-                value: formatMoney(stats.totalSales - stats.totalDiscount - stats.payOut),
-                note: "After discounts & recorded payouts",
-                color: "#B9855B",
-                icon: FiTrendingUp,
-                points: "0,20 14,24 28,15 42,18 56,9 70,12 84,5 100,8",
-              },
-              {
-                label: "Top selling item",
-                value: stats.topProducts[0]?.product || "No sales yet",
-                note: stats.topProducts[0]
-                  ? `${stats.topProducts[0].quantity} sold · ${formatMoney(stats.topProducts[0].revenue)}`
-                  : "No product sales in this period",
-                color: "#82716C",
-                icon: FiShoppingBag,
-                points: "0,24 14,18 28,20 42,10 56,13 70,5 84,8 100,1",
-              },
-            ].map((metric) => {
-              const MetricIcon = metric.icon;
-              return (
-                <article key={metric.label} className="relative overflow-hidden rounded-2xl border border-[#E5DCD7] bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[#796E6B]">{metric.label}</span>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${metric.color}16`, color: metric.color }}>
-                      <MetricIcon size={19} />
-                    </span>
-                  </div>
-                  <div className="truncate text-2xl font-bold tracking-tight text-[#2D2626]">{metric.value}</div>
-                  <p className="mt-1 truncate text-xs text-[#796E6B]">{metric.note}</p>
-                  <svg aria-hidden="true" viewBox="0 0 100 32" preserveAspectRatio="none" className="mt-4 h-9 w-full">
-                    <polyline points={metric.points} fill="none" stroke={metric.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </article>
-              );
-            })}
-          </section>
-
           <section aria-label="Revenue and category analytics" className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
             <article className="rounded-2xl border border-[#E5DCD7] bg-white p-5 shadow-sm sm:p-6">
               <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -1302,9 +1259,9 @@ export default function ReportsPage() {
                 <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Discounts</div>
                 <div className="text-2xl font-bold text-[#A7774E]">-{formatMoney(period.discounts).replace("₱", "")}</div>
               </div>
-              <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#F8EFED]">
-                <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Operating Expenses</div>
-                <div className="text-2xl font-bold text-[#A76560]">-{formatMoney(period.expenses).replace("₱", "")}</div>
+              <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#F3F0EA]">
+                <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Pay-ins</div>
+                <div className="text-2xl font-bold text-[#6F765A]">+{formatMoney(period.payIns).replace("₱", "")}</div>
               </div>
               <div className="border border-[#E5DCD7] rounded-xl p-4 bg-[#F3F0EA]">
                 <div className="text-xs font-semibold text-[#796E6B] uppercase mb-2">Net Income</div>
@@ -1361,7 +1318,7 @@ export default function ReportsPage() {
                   </thead>
                   <tbody className="divide-y divide-[#F0EAE6]">
                     {filterOrdersByPeriod.map((order) => {
-                      const discountedItems = order.items?.filter((item) => item.discount_type === "senior" || item.discount_type === "pwd") || [];
+                      const discountedItems = order.items?.filter((item) => getItemDiscount(item) > 0) || [];
 
                       return (
                         <tr key={order.id} className="hover:bg-[#FBF8F6] align-top">
@@ -1382,9 +1339,9 @@ export default function ReportsPage() {
                                       x{item.quantity}
                                     </span>
                                   </div>
-                                  {item.discount_type && (item.discount ?? 0) > 0 && (
+                                  {getItemDiscount(item) > 0 && (
                                     <div className="text-xs font-bold text-red-600">
-                                      {String(item.discount_type).toUpperCase()} discount applied
+                                      {item.discount_type ? `${String(item.discount_type).toUpperCase()} discount applied` : "Discount applied"}
                                     </div>
                                   )}
                                 </div>
@@ -1392,15 +1349,17 @@ export default function ReportsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-center text-sm">
-                            {discountedItems.length > 0 ? (
+                            {getDiscountAmount(order) > 0 ? (
                               <div className="flex flex-col items-center gap-1">
-                                <div className="flex flex-wrap gap-1 justify-center">
-                                  {discountedItems.map((item, idx) => (
-                                    <span key={idx} className="inline-block bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold uppercase">
-                                      {item.discount_type}
-                                    </span>
-                                  ))}
-                                </div>
+                                {discountedItems.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 justify-center">
+                                    {discountedItems.map((item, idx) => (
+                                      <span key={idx} className="inline-block bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold uppercase">
+                                        {item.discount_type || "discount"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                                 <span className="text-red-600 font-bold">-{formatMoney(getDiscountAmount(order))}</span>
                               </div>
                             ) : (
@@ -1457,78 +1416,6 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
-
-          <section className="mb-6 rounded-2xl border border-[#E5DCD7] bg-white p-4 shadow-sm lg:p-6">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[#2D2626]">All Orders & Cashflow History</h2>
-                <p className="mt-1 text-sm text-[#796E6B]">
-                  Every order status and cashflow transaction, across all dates. This shows saved records, not a change-by-change audit trail.
-                </p>
-              </div>
-              <span className="w-fit rounded-full bg-[#F7ECEA] px-3 py-1.5 text-xs font-semibold text-[#A76560]">
-                {allHistory.length.toLocaleString()} records
-              </span>
-            </div>
-
-            <label className="relative mb-4 block max-w-lg">
-              <FiSearch aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search"
-                value={historySearch}
-                onChange={(event) => setHistorySearch(event.target.value)}
-                placeholder="Search orders, customers, items, status, or cashflow..."
-                className="min-h-11 w-full rounded-xl border border-[#E5DCD7] bg-white py-2 pl-10 pr-3 text-sm text-[#2D2626] outline-none focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/15"
-              />
-            </label>
-
-            {filteredHistory.length === 0 ? (
-              <div className="rounded-xl bg-[#FBF8F6] px-4 py-10 text-center text-sm text-[#796E6B]">
-                {allHistory.length ? "No records match your search." : "No orders or cashflow transactions found."}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px]">
-                  <thead className="border-b border-[#E5DCD7] bg-[#F5EFEC]">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600">Date & time</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600">Type</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600">Reference</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600">Details</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-600">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredHistory.map((entry) => (
-                      <tr key={entry.key} className="align-top hover:bg-[#FBF8F6]">
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-600">
-                          {entry.date && !Number.isNaN(new Date(entry.date).getTime())
-                            ? new Date(entry.date).toLocaleString()
-                            : "Date unavailable"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            entry.kind === "Order" ? "bg-[#F7ECEA] text-[#A76560]" : "bg-[#F3F0EA] text-[#6F765A]"
-                          }`}>
-                            {entry.kind}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-800">{entry.reference}</td>
-                        <td className="max-w-xl px-4 py-3 text-sm text-slate-600">{entry.description}</td>
-                        <td className="px-4 py-3 text-sm capitalize text-slate-600">{entry.status}</td>
-                        <td className={`whitespace-nowrap px-4 py-3 text-right text-sm font-bold ${
-                          entry.kind === "Cashflow" && entry.amount < 0 ? "text-[#A76560]" : "text-[#2D2626]"
-                        }`}>
-                          {formatMoney(entry.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
 
           {modal.show && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}>

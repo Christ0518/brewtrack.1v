@@ -167,7 +167,11 @@ export default function Dashboard() {
             const label = day.toLocaleDateString("en-US", { weekday: "short" });
             const dayOrders = orders.filter((order) => {
                 const orderDate = new Date(order.created_at);
-                return orderDate >= day && orderDate < nextDay;
+                return (
+                    orderDate >= day &&
+                    orderDate < nextDay &&
+                    String(order.status || "").trim().toLowerCase() === "completed"
+                );
             });
             const total = dayOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
             const count = dayOrders.length;
