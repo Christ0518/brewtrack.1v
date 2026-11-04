@@ -51,7 +51,7 @@ export default function KitchenDisplay() {
     if (!Number.isFinite(aTimestamp)) return Number.isFinite(bTimestamp) ? 1 : a.id - b.id;
     if (!Number.isFinite(bTimestamp)) return -1;
 
-    const timeDiff = aTimestamp - bTimestamp;
+    const timeDiff = bTimestamp - aTimestamp;
     if (timeDiff !== 0) return timeDiff;
     return a.id - b.id;
   };
