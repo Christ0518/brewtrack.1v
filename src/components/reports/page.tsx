@@ -110,6 +110,11 @@ function formatLocalMonth(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function getReportMonth(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : "";
+}
+
 function csvEscape(value: unknown) {
   const text = String(value ?? "");
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
@@ -368,8 +373,7 @@ export default function ReportsPage() {
           return orderDate >= weekStart && orderDate <= weekEnd;
         }
         case "monthly": {
-          const [year, month] = selectedMonth.split("-");
-          return orderDate.getFullYear() === Number(year) && orderDate.getMonth() === Number(month) - 1;
+          return getReportMonth(order.created_at) === selectedMonth;
         }
         case "yearly":
           return orderDate.getFullYear() === Number(selectedYear);
@@ -404,9 +408,7 @@ export default function ReportsPage() {
           return transactionDate >= weekStart && transactionDate < weekEnd;
         }
         case "monthly": {
-          const [year, month] = selectedMonth.split("-");
-          return transactionDate.getFullYear() === Number(year) &&
-            transactionDate.getMonth() === Number(month) - 1;
+          return getReportMonth(dateValue) === selectedMonth;
         }
         case "yearly":
           return transactionDate.getFullYear() === Number(selectedYear);
