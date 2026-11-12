@@ -11,6 +11,7 @@ import {
   FiBox,
   FiCreditCard,
   FiGrid,
+  FiHelpCircle,
   FiLayers,
   FiLogOut,
   FiMenu,
@@ -116,6 +117,7 @@ export default function Sidebar() {
     { name: "Reports", path: "/dashboard/reports", icon: FiBarChart2 },
     { name: "Transactions", path: "/dashboard/transactions", icon: FiCreditCard },
     { name: "Settings", path: "/dashboard/settings", icon: FiSettings },
+    { name: "Help", path: "/dashboard/help", icon: FiHelpCircle },
   ];
 
   const handleLogout = async () => {

@@ -22,7 +22,7 @@ import {
 export default function Dashboard() {
     const router = useRouter();
     const [shopName, setShopName] = useState("Shop");
-    const [shopId, setShopId] = useState("1");
+    const [shopId, setShopId] = useState("");
     const [orders, setOrders] = useState<any[]>([]);
     const [cashflow, setCashflow] = useState<any[]>([]);
     const [ingredients, setIngredients] = useState<any[]>([]);
@@ -52,9 +52,9 @@ export default function Dashboard() {
             try {
                 const headers = { "x-shop-id": shopId };
                 const [ordersRes, cashflowRes, ingredientsRes] = await Promise.all([
-                    fetch(api_links.tbl_orders, { headers }),
-                    fetch(api_links.tbl_cashflow, { headers }),
-                    fetch(`${api_links.tbl_ingredients}?shop_id=${shopId}`, { headers }),
+                    fetch(api_links.tbl_orders, { cache: "no-store", headers }),
+                    fetch(api_links.tbl_cashflow, { cache: "no-store", headers }),
+                    fetch(`${api_links.tbl_ingredients}?shop_id=${shopId}`, { cache: "no-store", headers }),
                 ]);
 
                 const [ordersData, cashflowData, ingredientsData] = await Promise.all([
@@ -77,6 +77,16 @@ export default function Dashboard() {
         };
 
         loadDashboardMetrics();
+        const refreshInterval = window.setInterval(loadDashboardMetrics, 10000);
+        const handleWindowFocus = () => {
+            void loadDashboardMetrics();
+        };
+        window.addEventListener("focus", handleWindowFocus);
+
+        return () => {
+            window.clearInterval(refreshInterval);
+            window.removeEventListener("focus", handleWindowFocus);
+        };
     }, [shopId]);
 
     const formatMoney = (value: number) => `₱${value.toFixed(2)}`;
@@ -127,19 +137,6 @@ export default function Dashboard() {
         const healthy = Math.max(0, ingredients.length - low);
         return Math.round((healthy / ingredients.length) * 100);
     }, [ingredients, lowStockCount]);
-
-    const statusCounts = useMemo(() => {
-        const counts = { pending: 0, preparing: 0, completed: 0, cancelled: 0, other: 0 };
-        orders.forEach((order) => {
-            const status = String(order.status || "pending").toLowerCase();
-            if (status.includes("pending")) counts.pending += 1;
-            else if (status.includes("prepare") || status.includes("cooking") || status.includes("processing")) counts.preparing += 1;
-            else if (status.includes("complete") || status.includes("ready") || status.includes("done")) counts.completed += 1;
-            else if (status.includes("cancel")) counts.cancelled += 1;
-            else counts.other += 1;
-        });
-        return counts;
-    }, [orders]);
 
     const weeklyTrend = useMemo(() => {
         const now = new Date();
@@ -305,8 +302,8 @@ export default function Dashboard() {
                         </div>
                     </section>
 
-                    <section aria-label="Business performance" className="grid grid-cols-1 gap-5 2xl:grid-cols-3">
-                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6 2xl:col-span-2">
+                    <section aria-label="Business performance" className="grid grid-cols-1 gap-5">
+                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
                                     <h2 className="text-lg font-bold text-[#2D2626]">Sales trend</h2>
@@ -335,31 +332,6 @@ export default function Dashboard() {
                             <p className="mt-4 text-xs text-[#968984]">Order count shown above each bar.</p>
                         </article>
 
-                        <article className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
-                            <div className="flex items-start justify-between gap-4">
-                                <div>
-                                    <h2 className="text-lg font-bold text-[#2D2626]">Order status</h2>
-                                    <p className="mt-1 text-sm text-[#8A7C78]">Current breakdown</p>
-                                </div>
-                                <span className="rounded-full bg-[#F5EFEC] px-3 py-1 text-sm font-semibold text-[#75615C]">{orders.length} total</span>
-                            </div>
-                            <div className="mt-7 space-y-5">
-                                {Object.entries(statusCounts).map(([key, value]) => (
-                                    <div key={key}>
-                                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                                            <span className="font-medium capitalize text-[#796E6B]">{key}</span>
-                                            <span className="font-semibold tabular-nums text-[#2D2626]">{value}</span>
-                                        </div>
-                                        <div className="h-2.5 overflow-hidden rounded-full bg-[#F0E9E6]" role="progressbar" aria-label={`${key} orders`} aria-valuemin={0} aria-valuemax={orders.length} aria-valuenow={value}>
-                                            <div
-                                                className={`h-full rounded-full ${key === "completed" ? "bg-[#78A184]" : key === "cancelled" ? "bg-[#B9AAA5]" : key === "preparing" ? "bg-[#C98A84]" : "bg-[#D4AC68]"}`}
-                                                style={{ width: `${orders.length ? (value / orders.length) * 100 : 0}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </article>
                     </section>
 
                     <section aria-label="Product and inventory details" className="grid grid-cols-1 gap-5 2xl:grid-cols-2">

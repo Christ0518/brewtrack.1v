@@ -13,6 +13,7 @@ const getPageTitle = (pathname: string) => {
   if (pathname.startsWith("/dashboard/transactions/")) return "Transaction Details";
   if (pathname === "/dashboard/transactions") return "Transactions";
   if (pathname.startsWith("/dashboard/settings")) return "Settings";
+  if (pathname.startsWith("/dashboard/help")) return "Help";
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname === "/cashier/incoming-orders") return "Incoming Orders";
   if (pathname === "/cashier/order-history") return "Order History";

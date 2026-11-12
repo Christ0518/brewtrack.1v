@@ -383,7 +383,7 @@ export default function AddProduct({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-[#0F172A] sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#FAF6F4] px-4 pb-10 pt-20 text-[#2D2626] sm:px-6 lg:px-8 lg:py-8">
       <AlertModal />
       <div className="mx-auto w-full max-w-5xl">
         {showAddIngredient && (
@@ -515,16 +515,16 @@ export default function AddProduct({
           </div>
         )}
 
-        <div className="mb-6 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-6 rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-[#0F172A] lg:text-3xl">
-                <div className="rounded-xl bg-[#EEF2FF] p-2.5 text-[#4F46E5]">
+              <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-[#2D2626] lg:text-3xl">
+                <div className="rounded-xl bg-[#F8EDEA] p-2.5 text-[#A76560]">
                   <FiPackage aria-hidden="true" />
                 </div>
                 Create Product
               </h1>
-              <p className="mt-1 text-sm text-[#64748B]">
+              <p className="mt-1 text-sm text-[#796E6B]">
                 Add a new product with variants to your menu
               </p>
             </div>
@@ -543,11 +543,11 @@ export default function AddProduct({
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm lg:p-6">
-            <h2 className="mb-5 text-lg font-bold text-[#0F172A]">Product Information</h2>
+            <h2 className="mb-5 text-lg font-bold text-[#2D2626]">Product Information</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col">
-                <label className="mb-2 text-sm font-medium text-[#334155]">
+                <label className="mb-2 text-sm font-semibold text-[#514441]">
                   Product Name <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -556,21 +556,21 @@ export default function AddProduct({
                   value={form.product_name}
                   onChange={handleChange}
                   placeholder="e.g., Caramel Macchiato"
-                  className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   required
                   disabled={loading}
                 />
               </div>
 
               <div className="flex flex-col">
-                <label className="mb-2 text-sm font-medium text-[#334155]">
+                <label className="mb-2 text-sm font-semibold text-[#514441]">
                   Category <span className="text-red-600">*</span>
                 </label>
                 <select
                   name="category_id"
                   value={form.category_id}
                   onChange={handleChange}
-                  className="min-h-12 cursor-pointer rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 cursor-pointer rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   required
                   disabled={loading}
                 >

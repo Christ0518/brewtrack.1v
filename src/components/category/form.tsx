@@ -66,12 +66,19 @@ export default function CategoryForm({
   return (
     <>
       <AlertModal />
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-        <div className="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-2xl">
-          <h2 className="mb-2 text-xl font-bold text-[#0F172A]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl border border-[#E9DFDB] bg-white p-6 shadow-2xl">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F8EDEA] text-[#A76560]">
+              <span className="text-lg font-bold">#</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#2D2626]">
             Add New Category
-          </h2>
-          <p className="mb-5 text-sm text-[#64748B]">Create a category to organize your product catalog.</p>
+              </h2>
+              <p className="mt-1 text-sm text-[#796E6B]">Create a category to organize your product catalog.</p>
+            </div>
+          </div>
 
         {categoryError && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -80,7 +87,7 @@ export default function CategoryForm({
         )}
 
         <div className="mb-4">
-          <label className="mb-2 block text-sm font-medium text-[#334155]">
+          <label className="mb-2 block text-sm font-semibold text-[#514441]">
             Category Name <span className="text-red-600">*</span>
           </label>
           <input
@@ -88,7 +95,7 @@ export default function CategoryForm({
             value={newCategoryName}
             onChange={(e) => setNewCategoryName(e.target.value)}
             placeholder="e.g., Hot Beverages, Pastries"
-            className="min-h-12 w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+            className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
             autoFocus
             disabled={loading}
           />
@@ -97,14 +104,14 @@ export default function CategoryForm({
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             onClick={handleCancel}
-            className="min-h-12 flex-1 rounded-xl border border-[#CBD5E1] px-4 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F1F5F9] disabled:opacity-50 sm:flex-none"
+            className="min-h-12 flex-1 rounded-xl border border-[#E0D4CF] px-4 text-sm font-semibold text-[#514441] transition-colors hover:bg-[#F5EFEC] disabled:opacity-50 sm:flex-none"
             disabled={loading}
           >
             Cancel
           </button>
           <button
             onClick={handleAddCategory}
-            className="min-h-12 flex-1 rounded-xl bg-[#059669] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#047857] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            className="min-h-12 flex-1 rounded-xl bg-[#C98A84] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#B97872] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
             disabled={loading}
           >
             {loading ? "Adding..." : "Add category"}
