@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Fetch_to } from "@/utilities";
 import api_links from "@/config/fetch_links/api_links.json";
-import { FiShoppingCart, FiSearch, FiX, FiTrash2, FiPlus, FiMinus, FiArrowLeft, FiPackage, FiMenu, FiClock } from "react-icons/fi";
+import { FiShoppingCart, FiSearch, FiX, FiTrash2, FiPlus, FiMinus, FiArrowLeft, FiPackage, FiMenu, FiClock, FiArrowUpRight } from "react-icons/fi";
 import { buildBarceloReceiptHtml } from "@/components/receipt/barcelo";
 import { buildGoodcoffeeReceiptHtml } from "@/components/receipt/goodcoffee";
 
@@ -937,6 +937,15 @@ export default function CashierDisplay() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <a
+                href="/order"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#C98A84] px-3 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#B97872]"
+              >
+                <span className="hidden sm:inline">Tablet Order</span>
+                <FiArrowUpRight size={16} />
+              </a>
               <button
                 type="button"
                 onClick={() => router.push("/cashier/order-history")}
@@ -1294,7 +1303,7 @@ export default function CashierDisplay() {
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#A08F89]">Current order</p>
               <h2 className="mt-1 flex items-center gap-2 text-xl font-black text-[#2D2626]">
                 <FiShoppingCart size={19} className="text-[#C98A84]" />
-                Ticket <span className="text-sm font-medium text-[#A08F89]">({cart.length})</span>
+             Cart <span className="text-sm font-medium text-[#A08F89]">({cart.length})</span>
               </h2>
             </div>
           </div>
@@ -1354,7 +1363,7 @@ export default function CashierDisplay() {
               <div className="mx-auto mb-3 flex h-12 w-12 justify-center text-[#C3B4AF]">
                 <FiShoppingCart size={24} />
               </div>
-              <p className="text-base font-bold text-[#4D413E]">Ticket is empty</p>
+              <p className="text-base font-bold text-[#4D413E]">Cart is empty</p>
               <p className="text-xs text-[#A08F89]">Tap a product to get started</p>
             </div>
           ) : (

@@ -82,7 +82,12 @@ export async function POST(req: NextRequest) {
 
     const forwardedProtocol = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
     const isSecureRequest = req.nextUrl.protocol === "https:" || forwardedProtocol === "https";
-    await createSession(authenticatedUser.name, typeof authenticatedUser.role === "string" ? authenticatedUser.role : undefined, isSecureRequest);
+    await createSession(
+      authenticatedUser.name,
+      typeof authenticatedUser.role === "string" ? authenticatedUser.role : undefined,
+      authenticatedUser.shop_id,
+      isSecureRequest
+    );
 
     return NextResponse.json(
       {

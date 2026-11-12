@@ -803,34 +803,34 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
     ];
 
     return (
-      <div className="flex min-h-screen bg-[#F8FAFC]">
+      <div className="flex min-h-screen bg-[#FAF6F4] text-[#2D2626]">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full px-4 py-6 sm:px-6 lg:px-8">
-            <header className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="mx-auto w-full max-w-[1600px] px-4 pb-8 pt-20 sm:px-6 lg:px-8 lg:pt-8">
+            <header className="mb-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <button
                   onClick={backToReports}
-                  className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                  className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#796E6B] transition hover:bg-[#ECE6E2] hover:text-[#2D2626]"
                 >
                   <FiArrowLeft size={16} />
                   Back to Reports
                 </button>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-600">{shopName} · {today}</p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Cash flow</h1>
-                <p className="mt-1 text-sm text-slate-500">Review today&apos;s cash-in and cash-out transactions.</p>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#A46F69]">{shopName} · {today}</p>
+                <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#2D2626] sm:text-4xl">Cash flow</h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#847773]">Review today&apos;s cash-in and cash-out transactions.</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={() => openMovementForm("payin")}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#059669] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#047857]"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#5E8B68] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#477259]"
                 >
                   <FiPlus size={17} />
                   Cash In
                 </button>
                 <button
                   onClick={() => openMovementForm("payout")}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#DC2626] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#B91C1C]"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#A76560] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#8F514C]"
                 >
                   <FiMinus size={17} />
                   Cash Out
@@ -842,31 +842,31 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
               {summaryCards.map((card) => {
                 const CardIcon = card.icon;
                 return (
-                  <article key={card.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <article key={card.label} className="min-w-0 rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-sm sm:p-6">
                     <div className="mb-4 flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-500">{card.label}</span>
+                      <span className="text-sm font-semibold text-[#796E6B]">{card.label}</span>
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ color: card.color, backgroundColor: `${card.color}14` }}>
                         <CardIcon size={17} />
                       </span>
                     </div>
-                    <p className="truncate text-xl font-bold tracking-tight text-slate-950">{card.value}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{card.note}</p>
+                    <p className="truncate text-2xl font-bold tracking-tight text-[#2D2626]">{card.value}</p>
+                    <p className="mt-1 text-xs leading-5 text-[#968984]">{card.note}</p>
                   </article>
                 );
               })}
             </section>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <header className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <section className="overflow-hidden rounded-2xl border border-[#E7DEDA] bg-white shadow-sm">
+              <header className="flex flex-col gap-3 border-b border-[#EEE5E1] p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-950">Cash transactions</h2>
-                  <p className="mt-1 text-sm text-slate-500">Pay-ins and pay-outs for {today}</p>
+                  <h2 className="text-lg font-bold text-[#2D2626]">Cash transactions</h2>
+                  <p className="mt-1 text-sm text-[#92837E]">Pay-ins and pay-outs for {today}</p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={loadTransactions}
                     disabled={transactionsLoading}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#E7DEDA] px-3 text-sm font-semibold text-[#766965] hover:bg-[#F5EFEC] disabled:opacity-50"
                   >
                     <FiRefreshCw size={15} className={transactionsLoading ? "animate-spin" : ""} />
                     Refresh
@@ -874,7 +874,7 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
                   <button
                     onClick={exportMovementLog}
                     disabled={todayMovements.length === 0}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#E7DEDA] px-3 text-sm font-semibold text-[#766965] hover:bg-[#F5EFEC] disabled:opacity-50"
                   >
                     <FiDownload size={15} />
                     Export CSV
@@ -883,56 +883,56 @@ export default function CashflowForm({ transactionId }: CashflowFormProps) {
               </header>
 
               {transactionsError && (
-                <div role="alert" className="m-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <div role="alert" className="m-5 rounded-xl border border-[#E7C7C3] bg-[#F9ECEA] p-4 text-sm text-[#8D4C46]">
                   {transactionsError}
                 </div>
               )}
 
               {transactionsLoading ? (
-                <div className="flex min-h-48 items-center justify-center text-sm font-medium text-slate-500">
+                <div className="flex min-h-48 items-center justify-center text-sm font-medium text-[#887A75]">
                   <FiRefreshCw className="mr-2 animate-spin" />
                   Loading transactions...
                 </div>
               ) : todayMovements.length === 0 ? (
                 <div className="flex min-h-56 flex-col items-center justify-center px-6 text-center">
-                  <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                  <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F4EEEB] text-[#A28F89]">
                     <FiClock size={21} />
                   </span>
-                  <p className="font-semibold text-slate-800">No cash transactions recorded today</p>
-                  <p className="mt-1 text-sm text-slate-500">Cash-in and cash-out transactions will appear here after they are saved.</p>
+                  <p className="font-semibold text-[#554946]">No cash transactions recorded today</p>
+                  <p className="mt-1 text-sm text-[#92837E]">Cash-in and cash-out transactions will appear here after they are saved.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[720px] text-left">
-                    <thead className="bg-slate-50">
+                    <thead className="bg-[#F5EFEC]">
                       <tr>
                         {["Date & time", "Type / category", "Description", "Amount", "Reference"].map((heading) => (
-                          <th key={heading} className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">{heading}</th>
+                          <th key={heading} className="px-5 py-3 text-xs font-bold uppercase tracking-wide text-[#796E6B]">{heading}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-[#F0E8E4]">
                       {cashflowSummary.chronological.map((transaction) => {
                         const isCashIn = transaction.type === "payin";
                         const timestamp = transaction.created_at || transaction.date;
                         return (
-                          <tr key={transaction.id} className="transition-colors hover:bg-slate-50/80">
+                          <tr key={transaction.id} className="transition-colors hover:bg-[#FCFAF9]">
                             <td className="whitespace-nowrap px-5 py-4">
-                              <div className="text-sm font-semibold text-slate-800">{new Date(timestamp).toLocaleDateString()}</div>
-                              <div className="mt-0.5 text-xs text-slate-500">{new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>
+                              <div className="text-sm font-semibold text-[#554946]">{new Date(timestamp).toLocaleDateString()}</div>
+                              <div className="mt-0.5 text-xs text-[#92837E]">{new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>
                             </td>
                             <td className="px-5 py-4">
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isCashIn ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold $                              {isCashIn ? "bg-[#E5F1E9] text-[#477259]" : "bg-[#F5E7E5] text-[#A65F58]"}`}>
                                 {isCashIn ? "Cash In" : "Cash Out"}
                               </span>
-                              <p className="mt-1.5 text-xs font-medium text-slate-500">{transaction.category}</p>
+                              <p className="mt-1.5 text-xs font-medium text-[#92837E]">{transaction.category}</p>
                             </td>
-                            <td className="px-5 py-4 text-sm text-slate-600">{transaction.description}
+                            <td className="px-5 py-4 text-sm text-[#655955]">{transaction.description}
                             </td>
-                            <td className={`whitespace-nowrap px-5 py-4 text-sm font-bold ${isCashIn ? "text-emerald-700" : "text-red-700"}`}>
+                            <td className={`whitespace-nowrap px-5 py-4 text-sm font-bold ${isCashIn ? "text-[#477259]" : "text-[#A65F58]"}`}>
                               {isCashIn ? "+" : "−"}₱{Number(transaction.amount || 0).toFixed(2)}
                             </td>
-                            <td className="px-5 py-4 text-sm text-slate-500">{transaction.reference || "—"}</td>
+                            <td className="px-5 py-4 text-sm text-[#92837E]">{transaction.reference || "—"}</td>
                           </tr>
                         );
                       })}

@@ -57,6 +57,23 @@ export default function Sidebar() {
         console.error("Failed to parse user data in sidebar:", error);
       }
     }
+
+    const refreshUserRole = async () => {
+      const response = await Fetch_to<{ message?: { role?: string } }>(api_links.jwt.verify);
+      if (!response.success || !response.data?.message) return;
+
+      const verifiedRole = response.data.message.role;
+      if (typeof verifiedRole !== "string") return;
+
+      const normalizedRole = verifiedRole.trim().toLowerCase();
+      setUser((currentUser) => {
+        const updatedUser = { ...(currentUser || {}), role: normalizedRole };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        return updatedUser;
+      });
+    };
+
+    void refreshUserRole();
   }, []);
 
   useEffect(() => {

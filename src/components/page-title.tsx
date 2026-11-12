@@ -5,15 +5,18 @@ import { usePathname } from "next/navigation";
 
 const getPageTitle = (pathname: string) => {
   if (pathname === "/" || pathname === "/barcelo" || pathname === "/goodcoffee") return "Login";
+  if (pathname === "/dashboard") return "Dashboard";
   if (pathname.startsWith("/dashboard/products")) return "Products";
   if (pathname.startsWith("/dashboard/ingredients")) return "Ingredients";
+  if (pathname === "/dashboard/reports/transactions") return "Cashflow Transactions";
   if (pathname.startsWith("/dashboard/reports")) return "Reports";
-  if (pathname.startsWith("/dashboard/transactions")) return "Transactions";
+  if (pathname.startsWith("/dashboard/transactions/")) return "Transaction Details";
+  if (pathname === "/dashboard/transactions") return "Transactions";
   if (pathname.startsWith("/dashboard/settings")) return "Settings";
   if (pathname.startsWith("/dashboard")) return "Dashboard";
-  if (pathname.startsWith("/cashier/incoming-orders")) return "Incoming Orders";
-  if (pathname.startsWith("/cashier/order-history")) return "Order History";
-  if (pathname.startsWith("/cashier")) return "Cashier";
+  if (pathname === "/cashier/incoming-orders") return "Incoming Orders";
+  if (pathname === "/cashier/order-history") return "Order History";
+  if (pathname === "/cashier") return "Cashier";
   if (pathname.startsWith("/kitchen")) return "Kitchen";
   if (pathname.startsWith("/order")) return "Mobile Ordering";
   return "BrewTrack";

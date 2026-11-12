@@ -20,12 +20,16 @@ export async function POST() {
             return NextResponse.json({ success: false, error: "Invalid session" }, { status: 401 });
         }
 
-        const { data: user, error } = await supabaseServer
+        let userQuery = supabaseServer
             .from("tbl_users")
             .select("role")
-            .eq("name", decoded.email)
-            .limit(1)
-            .maybeSingle();
+            .eq("name", decoded.email);
+
+        if (decoded.shop_id !== undefined && decoded.shop_id !== null) {
+            userQuery = userQuery.eq("shop_id", Number(decoded.shop_id));
+        }
+
+        const { data: user, error } = await userQuery.limit(1).maybeSingle();
 
         if (error) {
             console.error("Session role lookup failed:", error);
