@@ -34,6 +34,8 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<any | null>(null);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -145,10 +147,15 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
     setSelectedProduct(undefined);
   };
 
-  const handleDeleteCategory = async (category: any) => {
-    if (!confirm(`Delete category "${category.name}"?`)) return;
+  const handleDeleteCategory = (category: any) => {
+    setCategoryToDelete(category);
+  };
 
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    const category = categoryToDelete;
     try {
+      setDeletingCategoryId(Number(category.id));
       const response = await Fetch_to(
         api_links.tbl_category,
         { id: category.id, shop_id: shopId },
@@ -169,6 +176,9 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
     } catch (err) {
       console.error("Delete category error:", err);
       showAlert("Error deleting category", { variant: "error", title: "Delete Failed" });
+    } finally {
+      setCategoryToDelete(null);
+      setDeletingCategoryId(null);
     }
   };
 
@@ -630,6 +640,48 @@ export default function ProductsPage({ shopId = "1" }: ProductsPageProps) {
           onSuccess={() => { setShowAddCategoryModal(false); fetchCategories(); }}
           onCancel={() => setShowAddCategoryModal(false)}
         />
+      )}
+
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-category-title"
+            className="w-full max-w-md rounded-2xl border border-[#E9DFDB] bg-white shadow-2xl"
+          >
+            <div className="border-b border-[#E9DFDB] bg-[#F8EDEA] px-5 py-4">
+              <h2 id="delete-category-title" className="text-lg font-bold text-[#704B47]">
+                Delete category
+              </h2>
+            </div>
+            <div className="px-5 py-5">
+              <p className="text-sm leading-6 text-[#514441]">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-[#2D2626]">"{categoryToDelete.name}"</span>?
+                This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex flex-col-reverse gap-3 border-t border-[#F0E9E6] px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                disabled={deletingCategoryId !== null}
+                className="min-h-11 rounded-xl border border-[#E0D4CF] px-4 text-sm font-semibold text-[#514441] transition-colors hover:bg-[#F5EFEC] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteCategory}
+                disabled={deletingCategoryId !== null}
+                className="min-h-11 rounded-xl bg-[#A76560] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#8F514D] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingCategoryId !== null ? "Deleting..." : "Delete category"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

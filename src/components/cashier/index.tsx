@@ -698,7 +698,7 @@ export default function CashierDisplay() {
       shopName: resolvedShopName,
       customerName: customerName || "Walk-in",
       orderType: orderData.order_type as "dine-in" | "takeout",
-      createdAt: new Date().toLocaleString(),
+      createdAt: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
       subtotal,
       discount,
       total: Number(orderData.total) || 0,

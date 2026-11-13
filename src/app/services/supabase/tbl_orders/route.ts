@@ -33,7 +33,13 @@ function normalizeTimestamp(value: unknown) {
   if (typeof value !== "number" && typeof value !== "string") return value;
   const text = typeof value === "string" ? value.trim() : "";
   if (typeof value === "string" && !text) return value;
-  if (text && !/^-?\d+(?:\.\d+)?$/.test(text)) return value;
+  if (text && !/^-?\d+(?:\.\d+)?$/.test(text)) {
+    if (!/([zZ]|[+-]\d{2}:?\d{2})$/.test(text)) {
+      const date = new Date(`${text}Z`);
+      return Number.isNaN(date.getTime()) ? value : date.toISOString();
+    }
+    return value;
+  }
 
   const timestamp = Number(value);
   if (!Number.isFinite(timestamp)) return value;

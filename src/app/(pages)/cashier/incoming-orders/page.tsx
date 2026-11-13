@@ -181,7 +181,7 @@ export default function IncomingOrdersPage() {
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#796E6B]">
                         <span>{order.customer_name}</span>
                         <span className="text-slate-300">|</span>
-                        <span>{order.created_at ? new Date(order.created_at).toLocaleString() : ""}</span>
+                        <span>{order.created_at ? new Date(order.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" }) : ""}</span>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
                         {order.items.map((item, idx) => (

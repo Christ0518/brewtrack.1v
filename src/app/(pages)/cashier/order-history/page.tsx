@@ -197,7 +197,7 @@ export default function OrderHistoryPage() {
                     <h2 className="text-lg font-black text-[#2D2626]">{order.order_number || `Order #${order.id}`}</h2>
                     <span className="rounded-lg bg-[#ECE6E2] px-2 py-1 text-xs font-bold capitalize text-[#796E6B]">{order.status || "unknown"}</span>
                   </div>
-                  <p className="mt-1 text-sm text-[#796E6B]">{order.customer_name || "Walk-in"} {order.created_at ? `· ${new Date(order.created_at).toLocaleString()}` : ""}</p>
+                  <p className="mt-1 text-sm text-[#796E6B]">{order.customer_name || "Walk-in"} {order.created_at ? `· ${new Date(order.created_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}` : ""}</p>
                   <p className="mt-3 text-sm text-[#4D413E]">{order.items.map((item, itemIndex) => `${item.quantity}x ${item.product_name || "Item"}${item.variant_name ? ` (${item.variant_name})` : ""}`).join(" · ") || "No items"}</p>
                   {order.notes && <p className="mt-2 rounded-xl bg-[#ECE6E2] px-3 py-2 text-sm text-[#796E6B]">{order.notes}</p>}
                 </div>

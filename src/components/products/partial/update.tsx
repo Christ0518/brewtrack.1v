@@ -299,11 +299,11 @@ export default function EditProduct({
   ========================= */
   if (fetching) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
+      <div className="flex min-h-screen items-center justify-center bg-[#FAF6F4]">
         <AlertModal />
         <div className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#E0E7FF] border-t-[#4F46E5]" />
-          <p className="font-medium text-[#475569]">Loading product…</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#F8EDEA] border-t-[#A76560]" />
+          <p className="font-medium text-[#796E6B]">Loading product…</p>
         </div>
       </div>
     );
@@ -313,27 +313,27 @@ export default function EditProduct({
      UI
   ========================= */
   return (
-    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-[#0F172A] sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#FAF6F4] px-4 pb-10 pt-20 text-[#2D2626] sm:px-6 lg:px-8 lg:py-8">
       <AlertModal />
       <div className="mx-auto w-full max-w-5xl">
 
-        <div className="mb-6 rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
+        <div className="mb-6 rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-[#0F172A] lg:text-3xl">
-                <div className="rounded-xl bg-[#EEF2FF] p-2.5 text-[#4F46E5]">
+              <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-[#2D2626] lg:text-3xl">
+                <div className="rounded-xl bg-[#F8EDEA] p-2.5 text-[#A76560]">
                   <FiPackage aria-hidden="true" />
                 </div>
                 Edit Product
               </h1>
-              <p className="mt-1 text-sm text-[#64748B]">
+              <p className="mt-1 text-sm text-[#796E6B]">
                 Update product details and variants
               </p>
             </div>
             <button
               onClick={onCancel}
               aria-label="Cancel and close"
-              className="flex h-12 w-12 items-center justify-center rounded-xl text-[#64748B] transition-colors hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+              className="flex h-12 w-12 items-center justify-center rounded-xl text-[#796E6B] transition-colors hover:bg-[#F5EFEC] hover:text-[#2D2626]"
             >
               <FiX size={20} />
             </button>
@@ -342,12 +342,12 @@ export default function EditProduct({
 
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm lg:p-6">
-            <h2 className="mb-5 text-lg font-bold text-[#0F172A]">Product Information</h2>
+          <div className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] lg:p-6">
+            <h2 className="mb-5 text-lg font-bold text-[#2D2626]">Product Information</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col">
-                <label className="mb-2 text-sm font-medium text-[#334155]">
+                <label className="mb-2 text-sm font-semibold text-[#514441]">
                   Product Name <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -355,21 +355,21 @@ export default function EditProduct({
                   value={form.product_name}
                   onChange={handleChange}
                   placeholder="e.g., Caramel Macchiato"
-                  className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   required
                   disabled={loading}
                 />
               </div>
 
               <div className="flex flex-col">
-                <label className="mb-2 text-sm font-medium text-[#334155]">
+                <label className="mb-2 text-sm font-semibold text-[#514441]">
                   Category <span className="text-red-600">*</span>
                 </label>
                 <select
                   name="category_id"
                   value={form.category_id}
                   onChange={handleChange}
-                  className="min-h-12 cursor-pointer rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 cursor-pointer rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   required
                   disabled={loading}
                 >
@@ -383,21 +383,21 @@ export default function EditProduct({
               </div>
 
               <div className="flex flex-col md:col-span-2">
-                <label className="mb-2 text-sm font-medium text-[#334155]">Description</label>
+                <label className="mb-2 text-sm font-semibold text-[#514441]">Description</label>
                 <textarea
                   name="product_description"
                   value={form.product_description}
                   onChange={handleChange}
                   placeholder="Enter product description..."
-                  className="resize-none rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-3 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="resize-none rounded-xl border border-[#E0D4CF] bg-white px-3.5 py-3 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   rows={3}
                   disabled={loading}
                 />
               </div>
 
               <div className="flex flex-col md:col-span-2">
-                <label className="mb-2 text-sm font-medium text-[#334155]">Product Image</label>
-                <div className="rounded-2xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-6 transition-colors hover:border-[#4F46E5]">
+                <label className="mb-2 text-sm font-semibold text-[#514441]">Product Image</label>
+                <div className="rounded-2xl border-2 border-dashed border-[#E0D4CF] bg-[#FAF6F4] p-6 transition-colors hover:border-[#C98A84]">
                   <input
                     type="file"
                     name="image"
@@ -416,21 +416,21 @@ export default function EditProduct({
                         <img
                           src={imagePreview}
                           alt="Preview"
-                          className="h-40 w-40 rounded-xl border border-[#E2E8F0] object-cover"
+                          className="h-40 w-40 rounded-xl border border-[#E9DFDB] object-cover"
                         />
-                        <div className="flex items-center gap-2 text-sm font-semibold text-[#4F46E5]">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-[#A76560]">
                           <FiUpload size={16} />
                           Click to change image
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-3 text-[#64748B]">
-                        <div className="rounded-xl bg-[#EEF2FF] p-4 text-[#4F46E5]">
+                      <div className="flex flex-col items-center gap-3 text-[#796E6B]">
+                        <div className="rounded-xl bg-[#F8EDEA] p-4 text-[#A76560]">
                           <FiImage size={28} />
                         </div>
                         <div className="text-center">
-                          <p className="text-sm font-semibold text-[#334155]">Click to upload image</p>
-                          <p className="mt-1 text-xs text-[#64748B]">PNG, JPG up to 10MB</p>
+                          <p className="text-sm font-semibold text-[#514441]">Click to upload image</p>
+                          <p className="mt-1 text-xs text-[#796E6B]">PNG, JPG up to 10MB</p>
                         </div>
                       </div>
                     )}
@@ -440,13 +440,13 @@ export default function EditProduct({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm lg:p-6">
+          <div className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] lg:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h2 className="text-lg font-bold text-[#0F172A]">Product Variants</h2>
+              <h2 className="text-lg font-bold text-[#2D2626]">Product Variants</h2>
               <button
                 type="button"
                 onClick={addVariant}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#059669] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#047857]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#C98A84] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#B97872]"
                 disabled={loading}
               >
                 <FiPlus size={16} />
@@ -464,11 +464,11 @@ export default function EditProduct({
               {variants.map((variant, vi) => (
                 <div
                   key={vi}
-                  className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:p-5"
+                  className="rounded-2xl border border-[#E9DFDB] bg-[#FAF6F4] p-4 sm:p-5"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-slate-900 flex items-center gap-2 text-sm">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#4F46E5] text-xs text-white">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#A76560] text-xs text-white">
                         {vi + 1}
                       </span>
                       Variant {vi + 1}
@@ -488,21 +488,21 @@ export default function EditProduct({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div className="flex flex-col">
-                      <label className="mb-2 text-sm font-medium text-[#334155]">
+                      <label className="mb-2 text-sm font-medium text-[#514441]">
                         Variant Name <span className="text-red-600">*</span>
                       </label>
                       <input
                         value={variant.name}
                         onChange={(e) => updateVariant(vi, "name", e.target.value)}
                         placeholder="e.g., Small, Medium, Large"
-                        className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                        className="min-h-12 rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                         required
                         disabled={loading}
                       />
                     </div>
 
                     <div className="flex flex-col">
-                      <label className="mb-2 text-sm font-medium text-[#334155]">
+                      <label className="mb-2 text-sm font-medium text-[#514441]">
                         Price <span className="text-red-600">*</span>
                       </label>
                       <input
@@ -512,14 +512,14 @@ export default function EditProduct({
                         placeholder="0.00"
                         step="0.01"
                         min="0"
-                        className="min-h-12 rounded-xl border border-[#CBD5E1] bg-white px-3.5 text-sm text-[#0F172A] outline-none transition focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                        className="min-h-12 rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                         required
                         disabled={loading}
                       />
                     </div>
                   </div>
 
-                  <div className="border-t border-[#E2E8F0] pt-4">
+                  <div className="border-t border-[#E9DFDB] pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-slate-700">Select Ingredients</h4>
                       <div className="relative w-full max-w-xs">
@@ -531,7 +531,7 @@ export default function EditProduct({
                           placeholder="Search ingredients..."
                           value={searchQueries[vi] || ""}
                           onChange={(e) => handleSearchChange(vi, e.target.value)}
-                          className="min-h-11 w-full rounded-xl border border-[#CBD5E1] bg-white py-2 pl-9 pr-3 text-sm text-[#0F172A] outline-none focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                          className="min-h-11 w-full rounded-xl border border-[#E0D4CF] bg-white py-2 pl-9 pr-3 text-sm text-[#2D2626] outline-none focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                           disabled={loading}
                         />
                       </div>
@@ -596,8 +596,8 @@ export default function EditProduct({
                               key={ing.id}
                               className={`rounded-xl border p-3 transition-colors ${
                                 selected
-                                  ? "border-[#A5B4FC] bg-[#EEF2FF]"
-                                  : "border-[#E2E8F0] bg-white hover:border-[#C7D2FE]"
+                                  ? "border-[#D9B3AE] bg-[#F8EDEA]"
+                                  : "border-[#E9DFDB] bg-white hover:border-[#D9B3AE]"
                               }`}
                             >
                               <label className="flex items-start gap-2 cursor-pointer">
@@ -613,15 +613,15 @@ export default function EditProduct({
                                       removeIngredient(vi, ing.id);
                                     }
                                   }}
-                                  className="mt-0.5 h-4 w-4 rounded accent-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                                  className="mt-0.5 h-4 w-4 rounded accent-[#A76560] focus:ring-2 focus:ring-[#C98A84]/20"
                                   disabled={loading}
                                 />
                                 <div className="flex-1">
-                                  <div className="text-sm font-semibold text-[#0F172A]">
+                                  <div className="text-sm font-semibold text-[#2D2626]">
                                     {ing.ingredient_name}
                                   </div>
-                                  <div className="text-xs text-[#64748B]">
-                                    Available: <span className="font-medium text-[#334155]">{ing.quantity ?? 0} {ing.unit}</span>
+                                  <div className="text-xs text-[#796E6B]">
+                                    Available: <span className="font-medium text-[#514441]">{ing.quantity ?? 0} {ing.unit}</span>
                                   </div>
 
                                   {selected && (
@@ -634,7 +634,7 @@ export default function EditProduct({
                                       }}
                                       step="0.01"
                                       min="0"
-                                      className="mt-2 min-h-11 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/10"
+                                      className="mt-2 min-h-11 w-full rounded-lg border border-[#E0D4CF] bg-white px-3 text-sm outline-none focus:border-[#C98A84] focus:ring-2 focus:ring-[#C98A84]/10"
                                       disabled={loading}
                                     />
                                   )}
@@ -659,7 +659,7 @@ export default function EditProduct({
             <button
               type="submit"
               disabled={loading}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#059669] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#047857] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#B97872] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
             >
               {loading ? (
                 <>
@@ -676,7 +676,7 @@ export default function EditProduct({
             <button
               type="button"
               onClick={onCancel}
-              className="min-h-12 flex-1 rounded-xl border border-[#CBD5E1] px-6 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F1F5F9] disabled:opacity-50 sm:flex-none"
+              className="min-h-12 flex-1 rounded-xl border border-[#E0D4CF] px-6 text-sm font-semibold text-[#514441] transition-colors hover:bg-[#F5EFEC] disabled:opacity-50 sm:flex-none"
             >
               Cancel
             </button>

@@ -260,7 +260,8 @@ export default function KitchenDisplay() {
   };
 
   const getCurrentDateTime = () => {
-    return now.toLocaleString([], {
+    return now.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -304,7 +305,11 @@ export default function KitchenDisplay() {
           <div className="flex items-center justify-between gap-5 sm:justify-end">
             <div className="text-right">
               <p className="text-xl font-bold tabular-nums text-[#2D2626]">
-                {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {now.toLocaleTimeString("en-PH", {
+                  timeZone: "Asia/Manila",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </p>
               <p className="text-xs text-[#796E6B]">{getCurrentDateTime().split(",")[0]}</p>
             </div>
