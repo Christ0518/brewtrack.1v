@@ -74,7 +74,39 @@ export default function Sidebar() {
       });
     };
 
+    const refreshShopBranding = async () => {
+      if (!storedShopId) return;
+
+      try {
+        const response = await fetch(`${api_links.tbl_shops}?id=${storedShopId}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(`Shop request failed with status ${response.status}`);
+
+        const shop = await response.json();
+        if (shop.name) {
+          setShopName(shop.name);
+          localStorage.setItem("shopName", shop.name);
+        }
+        if (shop.logo_url) {
+          setShopLogo(shop.logo_url);
+          localStorage.setItem("shopLogo", shop.logo_url);
+        } else {
+          setShopLogo("");
+          localStorage.removeItem("shopLogo");
+        }
+        if (shop.brand_color) {
+          setShopColor(shop.brand_color);
+          localStorage.setItem("shopColor", shop.brand_color);
+        }
+        window.dispatchEvent(new Event("brewtrack-shop-updated"));
+      } catch (error) {
+        console.error("Failed to refresh shop branding:", error);
+      }
+    };
+
     void refreshUserRole();
+    void refreshShopBranding();
   }, []);
 
   useEffect(() => {

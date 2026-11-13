@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import api_links from "@/config/fetch_links/api_links.json";
 
 const getPageTitle = (pathname: string) => {
   if (pathname === "/" || pathname === "/barcelo" || pathname === "/goodcoffee") return "Login";
@@ -27,24 +28,49 @@ export default function PageTitle() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const updateBranding = () => {
+    const updateBranding = async () => {
       const shopName = localStorage.getItem("shopName");
+      const shopId = localStorage.getItem("shopId") || "1";
       const title = getPageTitle(pathname);
       document.title = shopName ? `${title} | ${shopName}` : `${title} | BrewTrack`;
 
-      const logo = localStorage.getItem("shopLogo");
-      if (!logo) return;
+      let logo = localStorage.getItem("shopLogo");
+      try {
+        const response = await fetch(`${api_links.tbl_shops}?id=${shopId}`, { cache: "no-store" });
+        if (response.ok) {
+          const shop = await response.json();
+          if (shop.name) {
+            localStorage.setItem("shopName", shop.name);
+            document.title = `${title} | ${shop.name}`;
+          }
+          if (shop.logo_url) {
+            logo = shop.logo_url;
+            localStorage.setItem("shopLogo", shop.logo_url);
+          } else {
+            logo = "";
+            localStorage.removeItem("shopLogo");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load page branding:", error);
+      }
 
-      let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      const existingIcons = document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]');
+      let icon = document.querySelector<HTMLLinkElement>('link[data-brewtrack-favicon="true"]')
+        || existingIcons[0];
       if (!icon) {
         icon = document.createElement("link");
         icon.rel = "icon";
+        icon.dataset.brewtrackFavicon = "true";
         document.head.appendChild(icon);
       }
-      icon.href = logo;
+      existingIcons.forEach((existingIcon) => {
+        existingIcon.href = logo || "/favicon.ico";
+      });
+      icon.href = logo || "/favicon.ico";
     };
 
-    updateBranding();
+    void updateBranding();
     window.addEventListener("storage", updateBranding);
     window.addEventListener("brewtrack-shop-updated", updateBranding);
 

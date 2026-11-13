@@ -51,6 +51,7 @@ interface ShopInfo {
   id: string;
   name: string;
   brand_color: string;
+  logo_url?: string | null;
   receipt_header?: string;
   receipt_footer?: string;
 }
@@ -136,6 +137,7 @@ export default function CashierDisplay() {
   const [editReason, setEditReason] = useState("");
   const [editAdminPassword, setEditAdminPassword] = useState("");
   const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const knownOrderStatuses = useRef(new Map<string, string>());
   const [modal, setModal] = useState<Modal>({
     isOpen: false,
@@ -578,6 +580,7 @@ export default function CashierDisplay() {
     }
 
     try {
+      setCheckoutLoading(true);
       const total = calculateTotal();
       const orderPayload = editingOrderId
         ? {
@@ -676,6 +679,8 @@ export default function CashierDisplay() {
         setEditReason(originalEditState.editReason);
         setAmountPaid(originalEditState.amountPaid);
       }
+    } finally {
+      setCheckoutLoading(false);
     }
   };
 
@@ -810,6 +815,17 @@ export default function CashierDisplay() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#FAF6F4] text-[#2D2626] md:flex-row">
+      {checkoutLoading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-[#E9DFDB] bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#F8EDEA] border-t-[#A76560]" />
+            <p className="text-lg font-bold text-[#2D2626]">
+              {editingOrderId ? "Updating order..." : "Creating order..."}
+            </p>
+            <p className="mt-1 text-sm text-[#796E6B]">Please wait while we process the order.</p>
+          </div>
+        </div>
+      )}
       {/* Modal */}
       {modal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/35 p-4 backdrop-blur-sm">
@@ -875,8 +891,12 @@ export default function CashierDisplay() {
             title={showCategories ? "Collapse menu" : "Expand menu"}
             className={`flex min-h-12 w-full items-center gap-3 rounded-xl text-left transition hover:bg-white/70 ${showCategories ? "px-2.5" : "justify-center px-1"}`}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C98A84] text-white shadow-sm">
-              <FiPackage size={20} />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#C98A84] text-white shadow-sm">
+              {shopInfo?.logo_url ? (
+                <img src={shopInfo.logo_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <FiPackage size={20} />
+              )}
             </span>
             {showCategories && (
               <span className="min-w-0">

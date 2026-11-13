@@ -32,7 +32,9 @@ export default function KitchenDisplay() {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(new Date());
   const [shopName, setShopName] = useState("Shop");
+  const [shopLogo, setShopLogo] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
 
   const buildOrderNumber = (id: number) => `ORD-${String(id).padStart(3, "0")}`;
 
@@ -123,6 +125,7 @@ export default function KitchenDisplay() {
     console.log("DEBUG KITCHEN - storedUser:", storedUser);
 
     if (storedShopName) setShopName(storedShopName);
+    setShopLogo(localStorage.getItem("shopLogo") || "");
     
     if (!storedUser || storedUser === "undefined") {
       console.log("DEBUG KITCHEN - No user or undefined, redirecting to /");
@@ -150,6 +153,25 @@ export default function KitchenDisplay() {
 
     const storedShopId = localStorage.getItem("shopId") || "1";
 
+    const loadShopBranding = async () => {
+      try {
+        const response = await fetch(`${api_links.tbl_shops}?id=${storedShopId}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Shop request failed with status ${response.status}`);
+
+        const shop = await response.json();
+        if (shop.name) {
+          setShopName(shop.name);
+          localStorage.setItem("shopName", shop.name);
+        }
+        if (shop.logo_url) {
+          setShopLogo(shop.logo_url);
+          localStorage.setItem("shopLogo", shop.logo_url);
+        }
+      } catch (error) {
+        console.error("Failed to load kitchen shop branding:", error);
+      }
+    };
+
     const initializeOrders = async () => {
       try {
         await loadOrders();
@@ -161,6 +183,7 @@ export default function KitchenDisplay() {
       }
     };
 
+    void loadShopBranding();
     initializeOrders();
     const refreshInterval = setInterval(() => {
       loadOrders().catch((error) => {
@@ -215,6 +238,8 @@ export default function KitchenDisplay() {
   }, []);
 
   const handleStatusChange = async (orderId: number, newStatus: "pending" | "awaiting_acceptance" | "preparing" | "completed") => {
+    if (updatingOrderId !== null) return;
+    setUpdatingOrderId(newStatus === "completed" ? orderId : null);
     try {
       const response = await fetch(api_links.tbl_orders, {
         method: "PATCH",
@@ -239,6 +264,8 @@ export default function KitchenDisplay() {
         );  
     } catch (error) {
       console.error("Failed to update order status:", error);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -293,14 +320,28 @@ export default function KitchenDisplay() {
 
   return (
     <main className="min-h-screen bg-[#FAF6F4] text-[#2D2626]">
+      {updatingOrderId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-[#E9DFDB] bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-[#F8EDEA] border-t-[#A76560]" />
+            <p className="text-lg font-bold text-[#2D2626]">Marking order complete...</p>
+            <p className="mt-1 text-sm text-[#796E6B]">Please wait while the kitchen updates the order.</p>
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 border-b border-[#E9DEDA] pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#C98A84] text-white shadow-sm">
+              {shopLogo ? <img src={shopLogo} alt="" className="h-full w-full object-cover" /> : <span className="text-sm font-black">{shopName.slice(0, 1)}</span>}
+            </div>
+            <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#A65F58]">{shopName} Kitchen</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight text-[#2D2626]">Kitchen</h1>
             <p className="mt-1 text-sm text-[#796E6B]">
               {preparingOrders.length === 0 ? "Nothing is waiting right now" : `${preparingOrders.length} ${preparingOrders.length === 1 ? "order" : "orders"} in progress`}
             </p>
+            </div>
           </div>
           <div className="flex items-center justify-between gap-5 sm:justify-end">
             <div className="text-right">
@@ -376,13 +417,14 @@ export default function KitchenDisplay() {
                       </div>
                     </div>
                     <button
+                      disabled={updatingOrderId !== null}
                       onClick={(event) => {
                         event.stopPropagation();
                         handleStatusChange(order.id, "completed");
                       }}
-                      className="shrink-0 rounded-xl bg-[#C98A84] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B97872] sm:mt-1"
+                      className="shrink-0 rounded-xl bg-[#C98A84] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B97872] disabled:cursor-not-allowed disabled:opacity-50 sm:mt-1"
                     >
-                      Mark done
+                      {updatingOrderId === order.id ? "Updating..." : "Mark done"}
                     </button>
                   </div>
                 </article>
@@ -520,14 +562,15 @@ export default function KitchenDisplay() {
               {selectedOrder.status === "preparing" && (
                 <button
                   type="button"
+                  disabled={updatingOrderId !== null}
                   onClick={() => {
                     const orderId = selectedOrder.id;
                     setSelectedOrder(null);
                     handleStatusChange(orderId, "completed");
                   }}
-                  className="rounded-xl bg-[#C98A84] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B97872]"
+                  className="rounded-xl bg-[#C98A84] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#B97872] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Mark done
+                  {updatingOrderId === selectedOrder.id ? "Updating..." : "Mark done"}
                 </button>
               )}
             </div>

@@ -734,7 +734,9 @@ export default function ReportsPage() {
       link.download = `sales_report_${reportType}_${new Date().toISOString().split("T")[0]}.csv`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      if (link.parentNode === document.body) {
+        document.body.removeChild(link);
+      }
       URL.revokeObjectURL(url);
       showModal("success", "Report exported successfully.");
     } catch (error) {
