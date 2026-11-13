@@ -3,6 +3,39 @@ import { supabaseServer } from "@/lib/supabase";
 import { addDecimalStrings, normalizeNonNegativeDecimal, sumDecimalStrings } from "@/lib/decimal";
 import { sanitizeInsertPayload } from "@/lib/sanitizeInsertPayload";
 
+const isInventoryPrimaryKeyConflict = (error: {
+  code?: string;
+  details?: string | null;
+} | null) =>
+  error?.code === "23505" &&
+  error.details?.includes("tbl_inventory_pkey");
+
+async function insertInventoryRecord(payload: Record<string, unknown>) {
+  const initialInsert = await supabaseServer
+    .from("tbl_inventory")
+    .insert([payload]);
+
+  if (!isInventoryPrimaryKeyConflict(initialInsert.error)) {
+    return initialInsert;
+  }
+
+  const { data: highestInventory, error: highestInventoryError } = await supabaseServer
+    .from("tbl_inventory")
+    .select("id")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (highestInventoryError) {
+    return { ...initialInsert, error: highestInventoryError };
+  }
+
+  const nextId = Number(highestInventory?.id ?? 0) + 1;
+  return supabaseServer
+    .from("tbl_inventory")
+    .insert([{ ...payload, id: nextId }]);
+}
+
 // GET - Get all ingredients or single ingredient
 export async function GET(req: NextRequest) {
   try {
@@ -341,17 +374,11 @@ export async function POST(req: NextRequest) {
             minimum_stock: minimum_stock ?? inventoryData.minimum_stock,
           })
           .eq("id", inventoryData.id)
-          .select("id")
-          .single()
-      : await supabaseServer
-          .from("tbl_inventory")
-          .insert([sanitizeInsertPayload({
+      : await insertInventoryRecord(sanitizeInsertPayload({
             ingredient_id,
             quantity: totalQuantity,
             minimum_stock: minimum_stock ?? null,
-          })])
-          .select("id")
-          .single();
+          }));
 
     if (inventoryWrite.error) {
       console.error("Error saving inventory:", inventoryWrite.error);
@@ -367,11 +394,14 @@ export async function POST(req: NextRequest) {
       const missingInventoryIdDefault =
         inventoryWrite.error.code === "23502" &&
         inventoryWrite.error.details?.includes('column "id" of relation "tbl_inventory"');
+        const inventorySequenceOutOfSync = isInventoryPrimaryKeyConflict(inventoryWrite.error);
 
       return NextResponse.json(
         {
           message: missingInventoryIdDefault
             ? "The database is missing the tbl_inventory ID generator. Apply migrations/009_initialize_ingredient_inventory.sql in Supabase SQL Editor."
+            : inventorySequenceOutOfSync
+              ? "The tbl_inventory ID sequence is out of sync. Apply migrations/022_sync_inventory_id_sequence.sql in Supabase SQL Editor, then retry."
             : rollbackError
               ? "Cannot save inventory and the ingredient batch could not be rolled back"
               : "Cannot save inventory; the ingredient batch was rolled back",
@@ -386,7 +416,7 @@ export async function POST(req: NextRequest) {
         message: "Ingredient + inventory saved",
         batch_id: savedBatch.id,
         ingredient_id,
-        inventory_id: inventoryWrite.data.id
+        inventory_id: inventoryData?.id ?? null
       },
       { status: 201 }
     );
@@ -475,6 +505,21 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    if (expiration_date !== undefined) {
+      const { error: batchError } = await supabaseServer
+        .from("ingredient_batches")
+        .update({ expiration_date: expiration_date || null })
+        .eq("ingredient_id", Number(id));
+
+      if (batchError) {
+        console.error("Error updating ingredient batch expiration:", batchError);
+        return NextResponse.json(
+          { message: "Cannot update ingredient batch expiration", error: batchError.message },
+          { status: 500 }
+        );
+      }
+    }
+
     // Update inventory quantity if provided
 
     const updateInvData: any = {};
@@ -517,20 +562,23 @@ if (Object.keys(updateInvData).length > 0) {
         .from("tbl_inventory")
         .update(updateInvData)
         .eq("id", inventoryData.id)
-    : await supabaseServer
-        .from("tbl_inventory")
-        .insert([sanitizeInsertPayload({ ingredient_id: Number(id), ...updateInvData })]);
+    : await insertInventoryRecord(
+        sanitizeInsertPayload({ ingredient_id: Number(id), ...updateInvData })
+      );
 
   if (inventoryWrite.error) {
     console.error("Error saving ingredient inventory:", inventoryWrite.error);
     const missingInventoryIdDefault =
       inventoryWrite.error.code === "23502" &&
       inventoryWrite.error.details?.includes('column "id" of relation "tbl_inventory"');
+    const inventorySequenceOutOfSync = isInventoryPrimaryKeyConflict(inventoryWrite.error);
 
     return NextResponse.json(
       {
         message: missingInventoryIdDefault
           ? "The database is missing the tbl_inventory ID generator. Apply migrations/009_initialize_ingredient_inventory.sql in Supabase SQL Editor, then retry."
+          : inventorySequenceOutOfSync
+            ? "The tbl_inventory ID sequence is out of sync. Apply migrations/022_sync_inventory_id_sequence.sql in Supabase SQL Editor, then retry."
           : "Cannot save ingredient inventory",
         error: inventoryWrite.error.message,
       },
@@ -573,12 +621,12 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { data, error } = await supabaseServer
+    const { error, count } = await supabaseServer
       .from("tbl_ingredients")
       .update({ is_deleted: 1 })
       .eq("id", id)
       .eq("shop_id", shopId)
-      .select();
+      .select("id", { count: "exact", head: false });
 
     if (error) {
       console.error("Error deleting ingredient:", error);
@@ -588,7 +636,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    if (!data || data.length === 0) {
+    if (count === 0) {
       return NextResponse.json(
         { message: "Ingredient not found" },
         { status: 404 }

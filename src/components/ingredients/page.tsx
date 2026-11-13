@@ -26,6 +26,7 @@ interface Ingredient {
     id: number;
     remaining_quantity: number | null;
     expiration_date: string | null;
+    unit_price?: number | null;
   }[];
 }
 
@@ -56,6 +57,12 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
   const [formMode, setFormMode] = useState<"create" | "edit" | "delete">("create");
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | undefined>();
   const [quantityIngredient, setQuantityIngredient] = useState<Ingredient | null>(null);
+  const [editingBatch, setEditingBatch] = useState<{
+    id: number;
+    quantity: string;
+    unit_price: string;
+    expiration_date: string;
+  } | null>(null);
   const [quantityForm, setQuantityForm] = useState({ quantity: "", unit_price: "", expiration_date: "" });
   const [quantityFormError, setQuantityFormError] = useState("");
   const [submittingQuantity, setSubmittingQuantity] = useState(false);
@@ -68,6 +75,8 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
     name: "",
     isAddOn: false,
   });
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingItem, setDeletingItem] = useState(false);
   const [addOnForm, setAddOnForm] = useState({
     name: "",
     quantity: "",
@@ -124,6 +133,15 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
     const diffMillis = expiration.getTime() - today.getTime();
     const diffDays = Math.ceil(diffMillis / (1000 * 60 * 60 * 24));
     return diffDays >= 0 && diffDays <= 7;
+  };
+
+  const getEffectiveExpirationDate = (ingredient: Ingredient) => {
+    const datedBatches = (ingredient.batches || [])
+      .filter((batch) => batch.expiration_date)
+      .sort((a, b) => String(a.expiration_date).localeCompare(String(b.expiration_date)));
+    const activeBatch = datedBatches.find((batch) => Number(batch.remaining_quantity) > 0);
+
+    return activeBatch?.expiration_date || datedBatches[0]?.expiration_date || ingredient.expiration_date;
   };
 
   const fetchIngredients = async () => {
@@ -188,12 +206,11 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
   };
 
   const handleDeleteClick = (ingredient: Ingredient) => {
-    setFormMode("delete");
-    setSelectedIngredient(ingredient);
-    setShowForm(true);
+    openDeleteModal(ingredient.id, ingredient.ingredient_name);
   };
 
   const openAddQuantity = (ingredient: Ingredient) => {
+    setEditingBatch(null);
     setQuantityIngredient(ingredient);
     setQuantityForm({
       quantity: "",
@@ -203,9 +220,25 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
     setQuantityFormError("");
   };
 
+  const openEditBatch = (ingredient: Ingredient, batch: NonNullable<Ingredient["batches"]>[number]) => {
+    setQuantityIngredient(ingredient);
+    const quantity = String(batch.remaining_quantity ?? "");
+    const unitPrice = batch.unit_price?.toString() ?? ingredient.unit_price?.toString() ?? "";
+    const expirationDate = batch.expiration_date?.slice(0, 10) ?? "";
+    setEditingBatch({
+      id: batch.id,
+      quantity,
+      unit_price: unitPrice,
+      expiration_date: expirationDate,
+    });
+    setQuantityForm({ quantity, unit_price: unitPrice, expiration_date: expirationDate });
+    setQuantityFormError("");
+  };
+
   const closeAddQuantity = () => {
     if (submittingQuantity) return;
     setQuantityIngredient(null);
+    setEditingBatch(null);
     setQuantityFormError("");
   };
 
@@ -218,16 +251,23 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
     try {
       const response = await Fetch_to(
         `${api_links.tbl_ingredients}/batches?shop_id=${shopId}`,
-        {
-          ingredient_id: quantityIngredient.id,
-          quantity: quantityForm.quantity,
-          unit_price: quantityForm.unit_price,
-          expiration_date: quantityForm.expiration_date,
-        },
+        editingBatch
+          ? {
+              id: editingBatch.id,
+              ingredient_id: quantityIngredient.id,
+              unit_price: quantityForm.unit_price,
+              expiration_date: quantityForm.expiration_date,
+            }
+          : {
+              ingredient_id: quantityIngredient.id,
+              quantity: quantityForm.quantity,
+              unit_price: quantityForm.unit_price,
+              expiration_date: quantityForm.expiration_date,
+            },
         {},
         1,
         1000,
-        "POST"
+        editingBatch ? "PATCH" : "POST"
       );
 
       if (!response.success) {
@@ -236,6 +276,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
       }
 
       setQuantityIngredient(null);
+      setEditingBatch(null);
       await fetchIngredients();
     } catch (error) {
       console.error("Failed to add ingredient quantity:", error);
@@ -246,10 +287,13 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
   };
 
   const openDeleteModal = (id: number | string, name: string, isAddOn = false) => {
+    setDeleteError("");
     setDeleteModal({ show: true, id, name, isAddOn });
   };
 
   const closeDeleteModal = () => {
+    if (deletingItem) return;
+    setDeleteError("");
     setDeleteModal({ show: false, id: null, name: "", isAddOn: false });
   };
 
@@ -343,11 +387,14 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
   };
 
   const handleDelete = async () => {
-    try {
-      if (!deleteModal.id) return;
+    if (deleteModal.id === null) return;
 
+    setDeletingItem(true);
+    setDeleteError("");
+    try {
+      let response;
       if (deleteModal.isAddOn) {
-        await Fetch_to(
+        response = await Fetch_to(
           api_links.tbl_toppings,
           { id: deleteModal.id },
           {},
@@ -355,9 +402,8 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           1000,
           "DELETE"
         );
-        await fetchAddOns();
       } else {
-        await Fetch_to(
+        response = await Fetch_to(
           `${api_links.tbl_ingredients}?shop_id=${shopId}&id=${deleteModal.id}`,
           {},
           {},
@@ -365,13 +411,24 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
           1000,
           "DELETE"
         );
-        await fetchIngredients();
       }
 
-      closeDeleteModal();
+      if (!response.success) {
+        setDeleteError(response.message);
+        return;
+      }
+
+      setDeleteModal({ show: false, id: null, name: "", isAddOn: false });
+      if (deleteModal.isAddOn) {
+        await fetchAddOns();
+      } else {
+        await fetchIngredients();
+      }
     } catch (error) {
       console.error("Failed to delete item:", error);
-      closeDeleteModal();
+      setDeleteError("Could not delete the item. Please try again.");
+    } finally {
+      setDeletingItem(false);
     }
   };
 
@@ -405,8 +462,9 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
   }).length;
 
   const nearExpirationItems = ingredients.filter((ing) => {
-    if (!ing.expiration_date) return false;
-    const expiration = parseCalendarDate(ing.expiration_date);
+    const expirationDate = getEffectiveExpirationDate(ing);
+    if (!expirationDate) return false;
+    const expiration = parseCalendarDate(expirationDate);
     if (!expiration) return false;
     const today = new Date();
     const diffMillis = expiration.getTime() - today.setHours(0, 0, 0, 0);
@@ -958,9 +1016,10 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
               const stockRecorded = hasStockData(item);
               const isLowStock = stockRecorded && quantity < threshold;
               const stockPercent = stockRecorded ? Math.min(100, Math.max(0, (quantity / threshold) * 100)) : 0;
+              const expirationDate = getEffectiveExpirationDate(item);
               const statusLabel = !stockRecorded
                 ? "No stock record"
-                : isExpired(item.expiration_date)
+                : isExpired(expirationDate)
                   ? "Expired"
                   : quantity <= 0
                     ? "Out of stock"
@@ -981,7 +1040,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                       </div>
                     </div>
                     <span className={`shrink-0 rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide sm:text-xs ${
-                      !stockRecorded || quantity <= 0 || isExpired(item.expiration_date)
+                      !stockRecorded || quantity <= 0 || isExpired(expirationDate)
                         ? "bg-[#F8EDEA] text-[#A76560]"
                         : isLowStock
                           ? "bg-[#FBF1DF] text-[#9A7138]"
@@ -1032,9 +1091,14 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                         ? `${item.batches.length} batch${item.batches.length === 1 ? "" : "es"}`
                         : "Expiration"}
                     </span>
-                    <span className={isExpired(item.expiration_date) ? "font-semibold text-[#A76560]" : ""}>
-                      {item.expiration_date ? formatCalendarDate(item.expiration_date) : "No expiry date"}
+                    <span className={isExpired(expirationDate) ? "font-semibold text-[#A76560]" : ""}>
+                      {expirationDate ? formatCalendarDate(expirationDate) : "No expiry date"}
                     </span>
+                    {!isExpired(expirationDate) && isNearExpiration(expirationDate) && (
+                      <span className="rounded-full bg-[#FBF1DF] px-2 py-1 text-[10px] font-semibold text-[#9A7138]">
+                        Near expiry
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-[#F0E9E6] pt-3">
@@ -1088,6 +1152,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                     const quantity = Number(item.quantity) || 0;
                     const stockRecorded = hasStockData(item);
                     const isLowStock = stockRecorded && quantity < threshold;
+                    const expirationDate = getEffectiveExpirationDate(item);
                     const price = Number(item.unit_price) || 0;
                     const itemValue = quantity * price;
 
@@ -1136,6 +1201,15 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                                     <span className="ml-2 text-xs text-[#8A7C78]">
                                       ({batch.remaining_quantity ?? 0} left)
                                     </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditBatch(item, batch)}
+                                      className="ml-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[#A76560] transition-colors hover:bg-[#F8EDEA]"
+                                      aria-label={`Edit batch ${batch.id}`}
+                                    >
+                                      <FiEdit size={12} />
+                                      Edit
+                                    </button>
                                     {isExpired(batch.expiration_date) && Number(batch.remaining_quantity) > 0 && (
                                       <span className="ml-2 rounded-full bg-[#F8EDEA] px-2 py-1 text-xs font-semibold text-[#A76560]">Expired</span>
                                     )}
@@ -1146,8 +1220,8 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                                 ))}
                               </div>
                             ) : (
-                              <span className={`text-sm font-medium text-[#514441] ${isExpired(item.expiration_date) || isNearExpiration(item.expiration_date) ? "text-[#A76560]" : ""}`}>
-                                {item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : "—"}
+                              <span className={`text-sm font-medium text-[#514441] ${isExpired(expirationDate) || isNearExpiration(expirationDate) ? "text-[#A76560]" : ""}`}>
+                                {expirationDate ? formatCalendarDate(expirationDate) : "—"}
                               </span>
                             )}
                           </div>
@@ -1169,7 +1243,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                               <FiAlertCircle size={12} />
                               NO STOCK RECORD
                             </span>
-                          ) : isExpired(item.expiration_date) ? (
+                          ) : isExpired(expirationDate) ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-[#F8EDEA] px-2.5 py-1.5 text-xs font-semibold text-[#A76560]">
                               <FiAlertCircle size={12} />
                               EXPIRED
@@ -1248,7 +1322,7 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
 
       {quantityIngredient && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeAddQuantity();
           }}
@@ -1257,15 +1331,17 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-quantity-title"
-            className="w-full max-w-lg rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-2xl sm:p-6"
+            className="w-full max-w-lg rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-2xl sm:p-6"
           >
             <header className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-[#64748B]">New inventory batch</p>
-                <h2 id="add-quantity-title" className="mt-1 text-xl font-bold text-[#0F172A]">
-                  Add quantity
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#9B7773]">
+                  {editingBatch ? "Edit inventory batch" : "New inventory batch"}
+                </p>
+                <h2 id="add-quantity-title" className="mt-1 text-xl font-bold text-[#2D2626]">
+                  {editingBatch ? `Edit batch #${editingBatch.id}` : "Add quantity"}
                 </h2>
-                <p className="mt-1 text-sm text-[#475569]">
+                <p className="mt-1 text-sm text-[#796E6B]">
                   {quantityIngredient.ingredient_name} · {quantityIngredient.unit}
                 </p>
               </div>
@@ -1274,21 +1350,21 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                 onClick={closeAddQuantity}
                 disabled={submittingQuantity}
                 aria-label="Close add quantity form"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#64748B] transition-colors hover:bg-[#F1F5F9] disabled:opacity-50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#796E6B] transition-colors hover:bg-[#F5EFEC] disabled:opacity-50"
               >
                 <FiX size={20} />
               </button>
             </header>
 
             {quantityFormError && (
-              <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div role="alert" className="mb-4 rounded-xl border border-[#E8C9C5] bg-[#F5E7E5] p-3 text-sm text-[#A65F58]">
                 {quantityFormError}
               </div>
             )}
 
             <form onSubmit={handleSubmitQuantity} className="space-y-4">
               <div>
-                <label htmlFor="batch-quantity" className="mb-2 block text-sm font-medium text-[#334155]">
+                <label htmlFor="batch-quantity" className="mb-2 block text-sm font-semibold text-[#514441]">
                   Quantity ({quantityIngredient.unit}) <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -1299,13 +1375,14 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                   step="any"
                   value={quantityForm.quantity}
                   onChange={(event) => setQuantityForm((form) => ({ ...form, quantity: event.target.value }))}
-                  className="min-h-12 w-full rounded-xl border border-[#CBD5E1] px-3.5 text-sm text-[#0F172A] outline-none focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-[#FAF6F4] px-3.5 text-sm text-[#2D2626] outline-none focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10 disabled:cursor-not-allowed disabled:opacity-70"
                   required
-                  disabled={submittingQuantity}
+                  disabled={submittingQuantity || !!editingBatch}
                 />
+                {editingBatch && <p className="mt-1 text-xs text-[#8A7C78]">Quantity cannot be changed after stock is recorded.</p>}
               </div>
               <div>
-                <label htmlFor="batch-unit-price" className="mb-2 block text-sm font-medium text-[#334155]">
+                <label htmlFor="batch-unit-price" className="mb-2 block text-sm font-semibold text-[#514441]">
                   Cost per {quantityIngredient.unit} (₱) <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -1316,13 +1393,13 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                   step="any"
                   value={quantityForm.unit_price}
                   onChange={(event) => setQuantityForm((form) => ({ ...form, unit_price: event.target.value }))}
-                  className="min-h-12 w-full rounded-xl border border-[#CBD5E1] px-3.5 text-sm text-[#0F172A] outline-none focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   required
                   disabled={submittingQuantity}
                 />
               </div>
               <div>
-                <label htmlFor="batch-expiration" className="mb-2 block text-sm font-medium text-[#334155]">
+                <label htmlFor="batch-expiration" className="mb-2 block text-sm font-semibold text-[#514441]">
                   Expiration date <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -1330,26 +1407,26 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
                   type="date"
                   value={quantityForm.expiration_date}
                   onChange={(event) => setQuantityForm((form) => ({ ...form, expiration_date: event.target.value }))}
-                  className="min-h-12 w-full rounded-xl border border-[#CBD5E1] px-3.5 text-sm text-[#0F172A] outline-none focus:border-[#4F46E5] focus:ring-4 focus:ring-[#4F46E5]/10"
+                  className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
                   required
                   disabled={submittingQuantity}
                 />
               </div>
-              <footer className="flex flex-col-reverse gap-3 border-t border-[#E2E8F0] pt-4 sm:flex-row sm:justify-end">
+              <footer className="flex flex-col-reverse gap-3 border-t border-[#F0E9E6] pt-4 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={closeAddQuantity}
                   disabled={submittingQuantity}
-                  className="min-h-12 rounded-xl border border-[#CBD5E1] px-5 text-sm font-semibold text-[#334155] hover:bg-[#F1F5F9] disabled:opacity-50"
+                  className="min-h-12 rounded-xl border border-[#E0D4CF] px-5 text-sm font-semibold text-[#514441] hover:bg-[#F5EFEC] disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingQuantity}
-                  className="min-h-12 rounded-xl bg-[#059669] px-5 text-sm font-semibold text-white hover:bg-[#047857] disabled:opacity-50"
+                  className="min-h-12 rounded-xl bg-[#C98A84] px-5 text-sm font-semibold text-white hover:bg-[#B97872] disabled:opacity-50"
                 >
-                  {submittingQuantity ? "Adding..." : "Add batch"}
+                  {submittingQuantity ? (editingBatch ? "Saving..." : "Adding...") : editingBatch ? "Save changes" : "Add batch"}
                 </button>
               </footer>
             </form>
@@ -1373,19 +1450,26 @@ export default function IngredientsPage({ shopId = "1" }: IngredientsPageProps) 
               Are you sure you want to delete <span className="font-semibold text-[#0F172A]">"{deleteModal.name}"</span>?
             </p>
             <p className="mb-6 text-sm text-[#64748B]">This action cannot be undone.</p>
+            {deleteError && (
+              <p className="mb-4 rounded-xl border border-[#E5C7C2] bg-[#F8EDEA] p-3 text-sm text-[#8F514C]">
+                {deleteError}
+              </p>
+            )}
 
             <div className="flex gap-3 justify-end">
               <button
                 onClick={closeDeleteModal}
+                disabled={deletingItem}
                 className="min-h-12 rounded-xl border border-[#CBD5E1] px-4 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F1F5F9]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
+                disabled={deletingItem}
                 className="min-h-12 rounded-xl bg-[#DC2626] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C]"
               >
-                Delete
+                {deletingItem ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>

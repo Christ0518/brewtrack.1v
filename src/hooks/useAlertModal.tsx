@@ -52,27 +52,27 @@ export function useAlertModal() {
     if (!state.open) return null;
 
     const variantStyles = {
-      info: "border-sky-200 bg-sky-50 text-sky-700",
-      success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      info: "border-[#E9DFDB] bg-[#FAF6F4] text-[#A76560]",
+      success: "border-[#E5C7C2] bg-[#F8EDEA] text-[#A76560]",
       error: "border-red-200 bg-red-50 text-red-700",
     }[state.variant];
 
     const titleStyles = {
-      info: "text-slate-900",
-      success: "text-emerald-900",
+      info: "text-[#2D2626]",
+      success: "text-[#2D2626]",
       error: "text-red-900",
     }[state.variant];
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl border border-[#E9DFDB] bg-white shadow-2xl">
           <div className={`border-b px-5 py-4 ${variantStyles}`}>
             <h2 className={`text-lg font-bold ${titleStyles}`}>{state.title}</h2>
           </div>
           <div className="px-5 py-5">
-            <p className="text-sm leading-6 text-slate-600">{state.message}</p>
+            <p className="text-sm leading-6 text-[#796E6B]">{state.message}</p>
           </div>
-          <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
+          <div className="flex justify-end gap-3 border-t border-[#F0E9E6] px-5 py-4">
             <button
               type="button"
               onClick={() => {
@@ -80,7 +80,7 @@ export function useAlertModal() {
                 closeAlert();
                 onClose?.();
               }}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+              className="min-h-12 rounded-xl bg-[#C98A84] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#B97872]"
             >
               {state.buttonText}
             </button>

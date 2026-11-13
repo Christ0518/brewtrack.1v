@@ -25,6 +25,13 @@ interface Ingredient {
   amount: number | string;
 }
 
+interface IngredientItem {
+  id: number | string;
+  ingredient_name: string;
+  unit: string;
+  quantity?: number | null;
+}
+
 interface Variant {
   id?: number;
   name: string;
@@ -60,9 +67,41 @@ export default function EditProduct({
   const [categories, setCategories] = useState<any[]>([]);
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [searchQueries, setSearchQueries] = useState<Record<number, string>>({});
+  const [addingIngredient, setAddingIngredient] = useState(false);
+  const [showAddIngredient, setShowAddIngredient] = useState(false);
+  const [newIngredient, setNewIngredient] = useState({
+    ingredient_name: "",
+    quantity: "",
+    unit: "g",
+    expiration_date: "",
+  });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const { showAlert, AlertModal } = useAlertModal();
+
+  const unitOptions = [
+    { value: "g", label: "Grams (g)" },
+    { value: "kg", label: "Kilograms (kg)" },
+    { value: "ml", label: "Milliliters (ml)" },
+    { value: "l", label: "Liters (l)" },
+    { value: "pcs", label: "Pieces (pcs)" },
+  ];
+
+  const convertToBaseUnit = (quantity: string, unit: string) => {
+    const value = Number(quantity);
+    if (Number.isNaN(value)) return { quantity: 0, unit };
+
+    switch (unit) {
+      case "kg":
+        return { quantity: value * 1000, unit: "g" };
+      case "l":
+        return { quantity: value * 1000, unit: "ml" };
+      case "pcs":
+        return { quantity: value * 60, unit: "g" };
+      default:
+        return { quantity: value, unit };
+    }
+  };
 
   /* =========================
      LOAD PRODUCT DATA
@@ -221,6 +260,80 @@ export default function EditProduct({
     );
   };
 
+  const handleAddIngredient = async () => {
+    if (
+      !newIngredient.ingredient_name ||
+      !newIngredient.quantity ||
+      !newIngredient.unit ||
+      !newIngredient.expiration_date
+    ) {
+      showAlert("All ingredient fields are required", { variant: "error", title: "Validation Error" });
+      return;
+    }
+
+    try {
+      setAddingIngredient(true);
+      const converted = convertToBaseUnit(newIngredient.quantity, newIngredient.unit);
+      const response = await Fetch_to<{ ingredient_id?: number }>(
+        `${api_links.tbl_ingredients}?shop_id=${shopId}`,
+        {
+          ingredient_name: newIngredient.ingredient_name,
+          quantity: converted.quantity,
+          unit: converted.unit,
+          expiration_date: newIngredient.expiration_date,
+        },
+        {},
+        3,
+        1000,
+        "POST"
+      );
+
+      if (!response.success) {
+        showAlert(response.message || "Failed to add ingredient", { variant: "error", title: "Ingredient Error" });
+        return;
+      }
+
+      setShowAddIngredient(false);
+      setNewIngredient({ ingredient_name: "", quantity: "", unit: "g", expiration_date: "" });
+      const ingredientResponse = await Fetch_to<IngredientItem[]>(
+        `${api_links.tbl_ingredients}?shop_id=${shopId}`,
+        {},
+        {},
+        3,
+        1000,
+        "GET"
+      );
+      if (ingredientResponse.success && Array.isArray(ingredientResponse.data)) {
+        setIngredients(ingredientResponse.data);
+      }
+
+      if (response.data?.ingredient_id) {
+        const ingredientId = response.data.ingredient_id;
+        setVariants((current) =>
+          current.map((variant, index) =>
+            index === 0 && !variant.ingredients.some(
+              (ingredient) => String(ingredient.ingredient_id) === String(ingredientId)
+            )
+              ? {
+                  ...variant,
+                  ingredients: [...variant.ingredients, { ingredient_id: ingredientId, amount: "" }],
+                }
+              : variant
+          )
+        );
+      }
+      showAlert(`Ingredient added (${converted.quantity} ${converted.unit})`, {
+        variant: "success",
+        title: "Ingredient Added - Enter Its Recipe Amount",
+      });
+    } catch (err) {
+      console.error("Add ingredient error:", err);
+      showAlert("Failed to add ingredient", { variant: "error", title: "Ingredient Error" });
+    } finally {
+      setAddingIngredient(false);
+    }
+  };
+
   /* =========================
      SUBMIT
   ========================= */
@@ -316,6 +429,104 @@ export default function EditProduct({
     <div className="min-h-screen bg-[#FAF6F4] px-4 pb-10 pt-20 text-[#2D2626] sm:px-6 lg:px-8 lg:py-8">
       <AlertModal />
       <div className="mx-auto w-full max-w-5xl">
+        {showAddIngredient && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2D2626]/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-[#E9DFDB] bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[#E9DFDB] p-5">
+                <h3 className="text-lg font-bold text-[#2D2626]">Add New Ingredient</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddIngredient(false)}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-[#796E6B] transition-colors hover:bg-[#F5EFEC]"
+                  disabled={addingIngredient}
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-5">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#514441]">
+                    Ingredient Name <span className="text-[#A76560]">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Coffee Beans"
+                    value={newIngredient.ingredient_name}
+                    onChange={(event) => setNewIngredient({ ...newIngredient, ingredient_name: event.target.value })}
+                    className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
+                    disabled={addingIngredient}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-[#514441]">
+                      Quantity <span className="text-[#A76560]">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g., 1000"
+                      value={newIngredient.quantity}
+                      onChange={(event) => setNewIngredient({ ...newIngredient, quantity: event.target.value })}
+                      className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
+                      disabled={addingIngredient}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-[#514441]">
+                      Unit <span className="text-[#A76560]">*</span>
+                    </label>
+                    <select
+                      value={newIngredient.unit}
+                      onChange={(event) => setNewIngredient({ ...newIngredient, unit: event.target.value })}
+                      className="min-h-12 w-full cursor-pointer rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
+                      disabled={addingIngredient}
+                    >
+                      {unitOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#514441]">
+                    Batch Expiration Date <span className="text-[#A76560]">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={newIngredient.expiration_date}
+                    onChange={(event) => setNewIngredient({ ...newIngredient, expiration_date: event.target.value })}
+                    className="min-h-12 w-full rounded-xl border border-[#E0D4CF] bg-white px-3.5 text-sm text-[#2D2626] outline-none transition focus:border-[#C98A84] focus:ring-4 focus:ring-[#C98A84]/10"
+                    disabled={addingIngredient}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 border-t border-[#F0E9E6] p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddIngredient(false)}
+                  className="min-h-12 flex-1 rounded-xl border border-[#E0D4CF] px-4 text-sm font-semibold text-[#514441] transition-colors hover:bg-[#F5EFEC]"
+                  disabled={addingIngredient}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddIngredient}
+                  className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C98A84] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#B97872] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={addingIngredient}
+                >
+                  {addingIngredient ? "Adding..." : "Add Ingredient"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] sm:p-6">
           <div className="flex items-center justify-between">
@@ -443,15 +654,26 @@ export default function EditProduct({
           <div className="rounded-2xl border border-[#E9DFDB] bg-white p-5 shadow-[0_8px_30px_rgba(69,47,39,0.04)] lg:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-bold text-[#2D2626]">Product Variants</h2>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#C98A84] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#B97872]"
-                disabled={loading}
-              >
-                <FiPlus size={16} />
-                Add Variant
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddIngredient(true)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#ECE6E2] px-3 text-sm font-semibold text-[#514441] transition-colors hover:bg-[#E2D9D4]"
+                  disabled={loading}
+                >
+                  <FiPlus size={16} />
+                  Add Ingredient
+                </button>
+                <button
+                  type="button"
+                  onClick={addVariant}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#C98A84] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#B97872]"
+                  disabled={loading}
+                >
+                  <FiPlus size={16} />
+                  Add Variant
+                </button>
+              </div>
             </div>
 
             {variants.length === 0 && (

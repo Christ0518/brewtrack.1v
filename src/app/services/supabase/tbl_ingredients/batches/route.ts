@@ -189,3 +189,69 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const shopId = url.searchParams.get("shop_id");
+    const { id, ingredient_id, unit_price, expiration_date } = await req.json();
+
+    if (!shopId || !Number.isInteger(Number(shopId)) || Number(shopId) <= 0) {
+      return NextResponse.json({ message: "Invalid shop ID" }, { status: 400 });
+    }
+
+    if (!Number.isInteger(Number(id)) || Number(id) <= 0 || !Number.isInteger(Number(ingredient_id)) || Number(ingredient_id) <= 0) {
+      return NextResponse.json({ message: "Invalid batch or ingredient ID" }, { status: 400 });
+    }
+
+    if (
+      typeof expiration_date !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(expiration_date) ||
+      Number.isNaN(new Date(`${expiration_date}T00:00:00`).getTime())
+    ) {
+      return NextResponse.json({ message: "A valid expiration date is required" }, { status: 400 });
+    }
+
+    const unitPrice = normalizeNonNegativeDecimal(unit_price);
+    if (unitPrice === null) {
+      return NextResponse.json({ message: "Cost per unit must be a valid non-negative decimal number" }, { status: 400 });
+    }
+
+    const { data: ingredient, error: ingredientError } = await supabaseServer
+      .from("tbl_ingredients")
+      .select("id")
+      .eq("id", Number(ingredient_id))
+      .eq("shop_id", Number(shopId))
+      .eq("is_deleted", 0)
+      .maybeSingle();
+
+    if (ingredientError) throw ingredientError;
+    if (!ingredient) return NextResponse.json({ message: "Ingredient not found" }, { status: 404 });
+
+    const { data: batch, error: batchLookupError } = await supabaseServer
+      .from("ingredient_batches")
+      .select("id")
+      .eq("id", Number(id))
+      .eq("ingredient_id", Number(ingredient_id))
+      .maybeSingle();
+
+    if (batchLookupError) throw batchLookupError;
+    if (!batch) return NextResponse.json({ message: "Ingredient batch not found" }, { status: 404 });
+
+    const { error: updateError } = await supabaseServer
+      .from("ingredient_batches")
+      .update({ unit_price: unitPrice, expiration_date })
+      .eq("id", Number(id))
+      .eq("ingredient_id", Number(ingredient_id));
+
+    if (updateError) throw updateError;
+
+    return NextResponse.json({ message: "Ingredient batch updated" }, { status: 200 });
+  } catch (error: any) {
+    console.error("Error updating ingredient batch:", error);
+    return NextResponse.json(
+      { message: "Cannot update ingredient batch", error: error.message },
+      { status: 500 }
+    );
+  }
+}
