@@ -2,6 +2,10 @@ type ReceiptLineItem = {
 	productName: string;
 	quantity: number;
 	lineTotal: number;
+	addOns?: {
+		name: string;
+		price: number;
+	}[];
 };
 
 type ReceiptTemplateData = {
@@ -41,6 +45,8 @@ export function buildGoodcoffeeReceiptHtml(data: ReceiptTemplateData) {
 			.divider { border-top: 1px dashed #713f12; margin: 10px 0; }
 			.row { display: flex; justify-content: space-between; margin: 5px 0; gap: 8px; }
 			.row span:last-child { text-align: right; }
+			.addon { display: flex; justify-content: space-between; margin: 2px 0 2px 12px; font-size: 11px; color: #713f12; gap: 8px; }
+			.addon span { text-align: right; }
 			.bold { font-weight: 700; }
 			.total { font-size: 14px; color: #ca8a04; font-weight: 800; }
 			.footer { text-align: center; margin-top: 14px; font-size: 10px; color: #713f12; }
@@ -57,7 +63,12 @@ export function buildGoodcoffeeReceiptHtml(data: ReceiptTemplateData) {
 		<div class="divider"></div>
 		${data.items
 			.map(
-				(item) => `<div class="row"><span>${escapeHtml(item.productName)} x${item.quantity}</span><span>PHP ${item.lineTotal.toFixed(2)}</span></div>`
+				(item) => `
+					<div class="row"><span>${escapeHtml(item.productName)} x${item.quantity}</span><span>PHP ${item.lineTotal.toFixed(2)}</span></div>
+					${(item.addOns || [])
+						.map((addOn) => `<div class="addon">+ ${escapeHtml(addOn.name)} <span>PHP ${addOn.price.toFixed(2)}</span></div>`)
+						.join("")}
+				`
 			)
 			.join("")}
 		<div class="divider"></div>

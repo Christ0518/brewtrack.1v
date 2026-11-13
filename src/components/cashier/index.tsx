@@ -709,7 +709,15 @@ export default function CashierDisplay() {
       items: cart.map((item) => ({
         productName: item.product_name,
         quantity: item.quantity,
-        lineTotal: (item.price - (item.discount || 0)) * item.quantity,
+        lineTotal: (
+          item.price -
+          (item.discount || 0) +
+          item.addOns.reduce((sum, addon) => sum + Number(addon.price || 0), 0)
+        ) * item.quantity,
+        addOns: item.addOns.map((addon) => ({
+          name: addon.name,
+          price: Number(addon.price || 0),
+        })),
       })),
     };
 
