@@ -579,6 +579,7 @@ export default function CashierDisplay() {
       return;
     }
 
+    const checkoutStartedAt = Date.now();
     try {
       setCheckoutLoading(true);
       const total = calculateTotal();
@@ -680,6 +681,10 @@ export default function CashierDisplay() {
         setAmountPaid(originalEditState.amountPaid);
       }
     } finally {
+      const elapsed = Date.now() - checkoutStartedAt;
+      if (elapsed < 400) {
+        await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
+      }
       setCheckoutLoading(false);
     }
   };

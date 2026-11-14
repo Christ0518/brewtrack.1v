@@ -240,6 +240,7 @@ export default function KitchenDisplay() {
   const handleStatusChange = async (orderId: number, newStatus: "pending" | "awaiting_acceptance" | "preparing" | "completed") => {
     if (updatingOrderId !== null) return;
     setUpdatingOrderId(newStatus === "completed" ? orderId : null);
+    const updateStartedAt = Date.now();
     try {
       const response = await fetch(api_links.tbl_orders, {
         method: "PATCH",
@@ -265,6 +266,10 @@ export default function KitchenDisplay() {
     } catch (error) {
       console.error("Failed to update order status:", error);
     } finally {
+      const elapsed = Date.now() - updateStartedAt;
+      if (elapsed < 400) {
+        await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
+      }
       setUpdatingOrderId(null);
     }
   };
