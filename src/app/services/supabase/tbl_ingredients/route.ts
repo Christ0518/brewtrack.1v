@@ -621,12 +621,12 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { error, count } = await supabaseServer
+    const { data, error } = await supabaseServer
       .from("tbl_ingredients")
       .update({ is_deleted: 1 })
       .eq("id", id)
       .eq("shop_id", shopId)
-      .select("id", { count: "exact", head: false });
+      .select("id");
 
     if (error) {
       console.error("Error deleting ingredient:", error);
@@ -636,7 +636,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    if (count === 0) {
+    if (!data || data.length === 0) {
       return NextResponse.json(
         { message: "Ingredient not found" },
         { status: 404 }
