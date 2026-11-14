@@ -223,16 +223,16 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
 
           if (ordersRes.ok) {
             const ordersData = await ordersRes.json();
-            const weekStart = new Date();
-            weekStart.setHours(0, 0, 0, 0);
-            weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+            const monthStart = new Date();
+            monthStart.setDate(1);
+            monthStart.setHours(0, 0, 0, 0);
             const productTotals = new Map<string, number>();
 
             (Array.isArray(ordersData) ? ordersData : [])
               .filter((order: any) => {
                 const status = String(order.status || "").toLowerCase();
                 const createdAt = new Date(order.created_at || "");
-                return status === "completed" && createdAt >= weekStart;
+                return status === "completed" && createdAt >= monthStart;
               })
               .forEach((order: any) => {
                 (Array.isArray(order.items) ? order.items : []).forEach((item: any) => {
@@ -690,9 +690,9 @@ export default function CustomerOrdering({ defaultShopId }: { defaultShopId?: st
                 )}
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C98A84]">Top seller this week</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C98A84]">Top seller this month</p>
                 <h2 className="mt-1 truncate text-lg font-black sm:text-xl">{popularProduct.name}</h2>
-                <p className="mt-1 text-sm text-[#796E6B]">Ordered {popularProduct.quantity} times this week</p>
+                <p className="mt-1 text-sm text-[#796E6B]">Ordered {popularProduct.quantity} times this month</p>
               </div>
             </div>
           </section>
